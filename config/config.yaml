@@ -1,0 +1,20 @@
+# PDFDoc / Kran-Tools Konfiguration 
+
+# (Alt / Reserve, kann bleiben, wird aber nicht mehr aktiv genutzt)
+input_pdf_dir: "input"
+
+# Neue, explizite Eingabe-Ordner:
+lec_dir: "input/lec"        # LEC-Fehlercodelisten
+bmk_dir: "input/bmk"        # BMK-Listen
+spl_dir: "input/spl"        # Schaltpläne
+manuals_dir: "input/manuals"  # <- dein Ordnername mit "e" hier eintragen
+
+models_dir: "output/models"
+reports_dir: "output/reports"
+embeddings_dir: "output/embeddings"
+
+tesseract_cmd: "D:/PDFDoc/Tesseract OCR Windows installer/tesseract.exe"
+ocr_enabled: true
+ocr_lang: "deu+eng"
+max_sample_pages: 3
+max_sample_chars: 1000

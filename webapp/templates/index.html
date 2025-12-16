@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>PDFDoc / Kran-Doc – Startseite</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Kran-Doc. (Beta.V:1)</h1>
+      <p>Dein Kran-Doktor: Fehlercodes prüfen, BMK-Infos sehen, Ort und Geber finden.</p>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <main class="page-main">
+      {% if system_status is defined %}
+        {% set ss = system_status %}
+      {% else %}
+        {% set ss = {
+          'models_dir': '',
+          'num_models': 0,
+          'num_full_knowledge': 0,
+          'embeddings_dir': '',
+          'has_chunks_jsonl': false,
+          'embedding_index_available': embedding_index_available if embedding_index_available is defined else false,
+          'latest_report': latest_report if latest_report is defined else None
+        } %}
+      {% endif %}
+
+      <!-- Systemstatus -->
+      <section class="card section">
+        <h2>Systemstatus</h2>
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="status-label">Kran-Modelle im System</div>
+            <div class="status-value">
+              {{ ss.num_full_knowledge or ss.num_models }}
+            </div>
+            <div class="status-sub">
+              Anzahl der aktuell eingepflegten Kran-Modelle.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 1) Fehler / Problem Suche -->
+      <section class="card section">
+        <h2>🔴 Fehlercode / Problem suchen</h2>
+
+        {% if embedding_index_available %}
+          <p class="status-ok">✅ Embedding-Index vorhanden – semantische Suche ist aktiv.</p>
+
+          <form id="search-form" class="search-form">
+            <label for="question" class="field-label">Frage / Fehlercode / Problem</label>
+            <textarea id="question" name="question" rows="3"
+              placeholder="Beispiel: LTM1110-5.1 Fehlercode 1A376C – welcher Geber ist das und wo sitzt er?"></textarea>
+
+            <div class="search-row">
+              <div class="field-group">
+                <label for="model" class="field-label">Modell</label>
+                <select id="model" name="model">
+                  <option value="">Alle Modelle</option>
+                  {% if ss.model_names is defined and ss.model_names %}
+                    {% for m in ss.model_names %}
+                      <option value="{{ m }}">{{ m }}</option>
+                    {% endfor %}
+                  {% else %}
+                    <option value="LTM1110-5.1">LTM1110-5.1</option>
+                  {% endif %}
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label for="source_type" class="field-label">Quelle (optional)</label>
+                <select id="source_type" name="source_type">
+                  <option value="">Alle</option>
+                  <option value="lec_error">LEC-Fehler</option>
+                  <option value="bmk_component">BMK-Liste</option>
+                  <option value="spl_reference">Schaltpläne</option>
+                  <option value="base_document">Handbuch / Sonstiges</option>
+                </select>
+              </div>
+
+              <div class="field-group narrow">
+                <label for="top_k" class="field-label">Anzahl Treffer</label>
+                <input id="top_k" name="top_k" type="number" value="5" min="1" max="20">
+              </div>
+            </div>
+
+            <button type="submit" class="btn primary">Suche starten</button>
+          </form>
+
+          <div id="search-status" class="search-status"></div>
+          <div id="search-results" class="search-results"></div>
+        {% else %}
+          <p class="status-warn">
+            ⚠️ Noch kein Embedding-Index vorhanden.<br>
+            Bitte zuerst die Pipeline laufen lassen, damit
+            <code>knowledge_chunks.jsonl</code> und der lokale Index gebaut werden.
+          </p>
+        {% endif %}
+      </section>
+
+      <!-- 2) BMK Suche -->
+      <section class="card section">
+        <h2>🔵 BMK / Bauteil suchen</h2>
+        <p class="status-sub">
+          Suche direkt nach BMK-Code (z.B. <code>A81</code>, <code>S987</code>) oder nach Begriffen (z.B. „Tastatureinheit“).
+        </p>
+
+        <form id="bmk-form" class="search-form">
+          <label for="bmk_query" class="field-label">BMK-Code / Bauteil</label>
+          <input id="bmk_query" name="bmk_query" type="text" placeholder="Beispiel: A81 oder S987 oder Tastatureinheit">
+
+          <div class="search-row">
+            <div class="field-group">
+              <label for="bmk_model" class="field-label">Modell</label>
+              <select id="bmk_model" name="bmk_model">
+                <option value="">Alle Modelle</option>
+                {% if ss.model_names is defined and ss.model_names %}
+                  {% for m in ss.model_names %}
+                    <option value="{{ m }}">{{ m }}</option>
+                  {% endfor %}
+                {% else %}
+                  <option value="LTM1110-5.1">LTM1110-5.1</option>
+                {% endif %}
+              </select>
+            </div>
+
+            <div class="field-group narrow">
+              <label for="bmk_limit" class="field-label">Max Treffer</label>
+              <input id="bmk_limit" name="bmk_limit" type="number" value="10" min="1" max="50">
+            </div>
+          </div>
+
+          <button type="submit" class="btn">BMK suchen</button>
+        </form>
+
+        <div id="bmk-status" class="search-status"></div>
+        <div id="bmk-results" class="search-results"></div>
+      </section>
+
+      <!-- Letzte Aktualisierung -->
+      <section class="card section">
+        <h2>Letzte Aktualisierung</h2>
+        {% if ss.latest_report %}
+          <p>Letzte Aktualisierung: <code>{{ ss.latest_report }}</code></p>
+        {% else %}
+          <p>Noch keine Aktualisierung durchgeführt.</p>
+        {% endif %}
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function() {
+      function setStatus(el, msg, type) {
+        el.textContent = msg;
+        el.className = 'search-status ' + (type || '');
+      }
+
+      function cleanDisplayText(value) {
+        if (value === undefined || value === null) return '';
+        let s = String(value);
+
+        // raus mit Hersteller/Meta/IDs
+        s = s.replace(/\bLIEBHERR\b/gi, '').trim();
+        s = s.replace(/\b(lwenep0|lweeng1|lwe\w+)\b/gi, '').trim();
+
+        // Bullet-Zeichen entfernen
+        s = s.replace(/^[\s•\-\*]+/gm, '').trim();
+
+        // mehrfach spaces
+        s = s.replace(/\s{2,}/g, ' ').trim();
+
+        return s;
+      }
+
+      // description: alles ab "LSB Adr" weg + Meta-Zeilen entfernen
+      function extractUsefulDescription(descRaw) {
+        if (!descRaw) return '';
+        let s = String(descRaw);
+
+        // vor "LSB Adr" abschneiden (egal ob groß/klein)
+        const cutIdx = s.search(/^\s*lsb\s*adr\b/im);
+        if (cutIdx >= 0) s = s.slice(0, cutIdx);
+
+        // Zeilen filtern: liebherr / ersteller / ausgabe etc.
+        const lines = s.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const filtered = lines.filter(l => {
+          if (/liebherr/i.test(l)) return false;
+          if (/^\s*ersteller\s*:/i.test(l)) return false;
+          if (/^\s*ausgabe\s*:/i.test(l)) return false;
+          if (/^\s*lsb\b/i.test(l)) return false;
+          return true;
+        });
+
+        // oft ist die 1. Zeile genau der Klartext (z.B. "Tastatureinheit links")
+        const joined = filtered.join(' · ');
+        return cleanDisplayText(joined);
+      }
+
+      function isLikelyBmkCode(code) {
+        const c = String(code || '').trim();
+        if (/^[A-Z]\d{1,4}([.\-]\w{1,6})?$/.test(c)) return true;
+        if (/^[A-Z]\d{1,4}\*$/.test(c)) return true; // z.B. S528*
+        return false;
+      }
+
+      function isLikelyErrorCode(code) {
+        const c = String(code || '').trim().toUpperCase();
+        if (/^[0-9A-F]{4,8}$/.test(c)) return true;
+        return false;
+      }
+
+      function createMetaRow(label, value) {
+        if (value === undefined || value === null) return null;
+        const s = cleanDisplayText(value);
+        if (!s) return null;
+
+        const row = document.createElement('div');
+        row.className = 'meta-row';
+
+        const l = document.createElement('span');
+        l.className = 'meta-label';
+        l.textContent = label + ':';
+
+        const v = document.createElement('span');
+        v.className = 'meta-value';
+        v.textContent = s;
+
+        row.appendChild(l);
+        row.appendChild(v);
+        return row;
+      }
+
+      function mapSourceLabel(raw) {
+        if (!raw) return 'Unbekannte Quelle';
+        switch (raw) {
+          case 'lec_error': return 'LEC-Fehler';
+          case 'bmk_component':
+          case 'bmk': return 'BMK-Liste';
+          case 'spl_reference':
+          case 'spl': return 'Schaltplan';
+          case 'base_document':
+          case 'manual': return 'Handbuch / Sonstiges';
+          default: return raw || 'Unbekannte Quelle';
+        }
+      }
+
+      function renderResults(resultsEl, results) {
+        resultsEl.innerHTML = '';
+        if (!results || !results.length) {
+          resultsEl.textContent = 'Keine Treffer gefunden.';
+          return;
+        }
+
+        results.forEach((r, idx) => {
+          const meta = r.metadata || {};
+          const card = document.createElement('div');
+          card.className = 'result-card';
+
+          const header = document.createElement('div');
+          header.className = 'result-header';
+
+          const model = r.model || meta.model || 'Unbekanntes Modell';
+          const rawSource = r.source_type || meta.source_type || r.source || meta.source || '';
+          const sourceLabel = mapSourceLabel(rawSource);
+          header.textContent = model + ' · ' + sourceLabel;
+
+          if (r.score != null) {
+            card.title = 'Score: ' + Number(r.score).toFixed(3);
+          }
+
+          const metaBox = document.createElement('div');
+          metaBox.className = 'result-meta';
+
+          const rawCode = (meta.code || meta.error_code || meta.bmk || '').toString().trim();
+          let codeToShow = '';
+          if (rawCode && (isLikelyErrorCode(rawCode) || isLikelyBmkCode(rawCode))) {
+            codeToShow = rawCode;
+          }
+
+          const rawDesc = meta.description || meta.beschreibung || '';
+          const usefulDesc = extractUsefulDescription(rawDesc);
+
+          const lsbError = meta.lsb_address || meta.lsb_error || meta.lsb_error_key || '';
+          const lsbBmk = meta.lsb_bmk_address || meta.lsb_key || '';
+          const sensor = meta.sensor_name || meta.geber_name || meta.title || '';
+          const location = meta.sensor_location || meta.location || meta.installation_place || '';
+          const blatt = meta.blatt || meta.sheet || '';
+          const wagon = meta.wagon || meta.wagen || '';
+
+          const codeRow = createMetaRow('Fehler/BMK', codeToShow);
+          if (codeRow) metaBox.appendChild(codeRow);
+
+          // ✅ hier kommt jetzt der Klartext rein (z.B. "Tastatureinheit links")
+          const descRow = createMetaRow('Beschreibung', usefulDesc);
+          if (descRow) metaBox.appendChild(descRow);
+
+          const hasDetails = wagon || lsbError || lsbBmk || sensor || location || blatt;
+
+          if (hasDetails) {
+            const details = document.createElement('details');
+            details.className = 'bmk-details';
+
+            const summary = document.createElement('summary');
+            summary.textContent = 'Details anzeigen';
+            details.appendChild(summary);
+
+            const inner = document.createElement('div');
+            inner.className = 'bmk-details-content';
+
+            const detailRows = [
+              createMetaRow('Wagen', wagon),
+              createMetaRow('Blatt', blatt),
+              createMetaRow('LSB (Fehler)', lsbError),
+              createMetaRow('LSB (BMK)', lsbBmk),
+              createMetaRow('Geber/Bauteil', sensor),
+              createMetaRow('Ort', location),
+            ];
+
+            detailRows.forEach((row) => { if (row) inner.appendChild(row); });
+
+            details.appendChild(inner);
+            metaBox.appendChild(details);
+          }
+
+          const textBox = document.createElement('div');
+          textBox.className = 'result-text';
+
+          const shortText = cleanDisplayText(meta.short_text || meta.title || r.title || '');
+          const longText = cleanDisplayText(meta.long_text || meta.text || r.text || '');
+
+          if (shortText) {
+            const p = document.createElement('p');
+            p.className = 'short-text';
+            p.textContent = shortText;
+            textBox.appendChild(p);
+          }
+
+          if (longText) {
+            const p = document.createElement('p');
+            p.className = 'long-text';
+            const maxLen = 400;
+            p.textContent = longText.length > maxLen ? longText.slice(0, maxLen) + ' …' : longText;
+            textBox.appendChild(p);
+          }
+
+          if (!shortText && !longText) {
+            const pre = document.createElement('pre');
+            pre.className = 'raw-json';
+            pre.textContent = JSON.stringify(r, null, 2);
+            textBox.appendChild(pre);
+          }
+
+          card.appendChild(header);
+          card.appendChild(metaBox);
+          card.appendChild(textBox);
+          resultsEl.appendChild(card);
+        });
+      }
+
+      // Suche (Semantik)
+      const form = document.getElementById('search-form');
+      const statusEl = document.getElementById('search-status');
+      const resultsEl = document.getElementById('search-results');
+
+      if (form) {
+        form.addEventListener('submit', function(ev) {
+          ev.preventDefault();
+
+          const question = document.getElementById('question').value.trim();
+          const modelSelect = document.getElementById('model');
+          const model = modelSelect ? modelSelect.value : '';
+          const sourceType = document.getElementById('source_type').value;
+          const topK = document.getElementById('top_k').value || '5';
+
+          if (!question) {
+            setStatus(statusEl, 'Bitte zuerst eine Frage eingeben.', 'error');
+            return;
+          }
+
+          setStatus(statusEl, 'Suche läuft ...', 'pending');
+          resultsEl.innerHTML = '';
+
+          fetch('{{ url_for("api_search") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question: question,
+              top_k: parseInt(topK, 10),
+              model: model || null,
+              source_type: sourceType || null
+            })
+          })
+            .then(resp => resp.json())
+            .then(data => {
+              if (!data.ok) {
+                setStatus(statusEl, 'Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
+                return;
+              }
+              setStatus(statusEl, 'Treffer: ' + data.results.length, 'ok');
+              renderResults(resultsEl, data.results);
+            })
+            .catch(err => {
+              console.error(err);
+              setStatus(statusEl, 'Fehler bei der Anfrage: ' + err, 'error');
+            });
+        });
+      }
+
+      // BMK Suche
+      const bmkForm = document.getElementById('bmk-form');
+      const bmkStatus = document.getElementById('bmk-status');
+      const bmkResults = document.getElementById('bmk-results');
+
+      if (bmkForm) {
+        bmkForm.addEventListener('submit', function(ev) {
+          ev.preventDefault();
+
+          const q = document.getElementById('bmk_query').value.trim();
+          const modelSelect = document.getElementById('bmk_model');
+          const model = modelSelect ? modelSelect.value : '';
+          const limit = document.getElementById('bmk_limit').value || '10';
+
+          if (!q) {
+            setStatus(bmkStatus, 'Bitte BMK-Code oder Begriff eingeben.', 'error');
+            return;
+          }
+
+          setStatus(bmkStatus, 'BMK-Suche läuft ...', 'pending');
+          bmkResults.innerHTML = '';
+
+          fetch('{{ url_for("api_bmk_search") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: q,
+              model: model || null,
+              limit: parseInt(limit, 10)
+            })
+          })
+            .then(resp => resp.json())
+            .then(data => {
+              if (!data.ok) {
+                setStatus(bmkStatus, 'Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
+                return;
+              }
+              setStatus(bmkStatus, 'Treffer: ' + data.results.length, 'ok');
+              renderResults(bmkResults, data.results);
+            })
+            .catch(err => {
+              console.error(err);
+              setStatus(bmkStatus, 'Fehler bei der Anfrage: ' + err, 'error');
+            });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

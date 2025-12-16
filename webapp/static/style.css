@@ -1,0 +1,365 @@
+/* Grundlayout */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #050612;
+  color: #f5f5f7;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 1150px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+/* Header */
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin: 0 0 4px;
+  font-size: 1.9rem;
+}
+
+.page-header p {
+  margin: 0;
+  color: #a7b0c0;
+  font-size: 0.95rem;
+}
+
+/* Karten / Sektionen */
+
+.section {
+  margin-bottom: 18px;
+}
+
+.card {
+  background: radial-gradient(circle at top left, #151a33 0, #070816 45%, #050612 100%);
+  border-radius: 16px;
+  padding: 18px 18px 20px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(120, 144, 180, 0.35);
+}
+
+.card h2 {
+  margin: 0 0 10px;
+  font-size: 1.2rem;
+}
+
+/* Systemstatus */
+
+.status-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-top: 8px;
+}
+
+.status-card {
+  background: rgba(5, 6, 18, 0.8);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(120, 144, 180, 0.4);
+}
+
+.status-label {
+  font-size: 0.85rem;
+  color: #9ea9c3;
+}
+
+.status-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.status-sub {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #8a94ab;
+}
+
+code {
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 0.8rem;
+}
+
+/* Buttons */
+
+.actions-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 144, 180, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5ecff;
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  border-color: transparent;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.5);
+  text-decoration: none;
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Status-Meldungen */
+
+.status-ok {
+  margin: 6px 0 10px;
+  font-size: 0.9rem;
+  color: #4ade80;
+}
+
+.status-warn {
+  margin: 6px 0;
+  font-size: 0.9rem;
+  color: #facc15;
+}
+
+.flash-messages {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+}
+
+.flash {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+}
+
+.flash.success {
+  border-color: rgba(74, 222, 128, 0.6);
+}
+
+.flash.error {
+  border-color: rgba(248, 113, 113, 0.8);
+}
+
+/* Suche */
+
+.search-form {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-bottom: 2px;
+}
+
+textarea,
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+}
+
+textarea:focus,
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.7);
+}
+
+.search-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr;
+  gap: 8px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-group.narrow input {
+  text-align: center;
+}
+
+/* Suchstatus & Ergebnisse */
+
+.search-status {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #cbd5f5;
+}
+
+.search-status.ok {
+  color: #4ade80;
+}
+.search-status.error {
+  color: #fb7185;
+}
+.search-status.pending {
+  color: #fbbf24;
+}
+
+.search-results {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Ergebnis-Karten */
+
+.result-card {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: radial-gradient(circle at top left, #111827 0, #020617 60%);
+  padding: 10px 12px 12px;
+}
+
+.result-header {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.result-score {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+
+.result-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.meta-row {
+  display: flex;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.meta-label {
+  color: #9ca3af;
+}
+
+.meta-value {
+  color: #e5e7eb;
+}
+
+.result-text .short-text {
+  margin: 0 0 2px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.result-text .long-text {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #d1d5db;
+  white-space: pre-wrap;
+}
+
+/* BMK-Details (Toggle) */
+
+.bmk-details {
+  margin-top: 2px;
+  font-size: 0.8rem;
+}
+
+.bmk-details > summary {
+  cursor: pointer;
+  list-style: none;
+  color: #a5b4fc;
+}
+
+.bmk-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bmk-details > summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.bmk-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.bmk-details-content {
+  margin-top: 4px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(148, 163, 184, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Report-Seite (optional) */
+
+.report-content {
+  white-space: pre-wrap;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+/* Responsiv */
+
+@media (max-width: 720px) {
+  .page {
+    padding: 16px 10px 32px;
+  }
+
+  .search-row {
+    grid-template-columns: 1fr;
+  }
+}

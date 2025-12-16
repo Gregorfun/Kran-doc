@@ -1,0 +1,48 @@
+﻿# --- Python / Virtualenv ---
+__pycache__/
+*.py[cod]
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+
+# --- VS Code / Remote ---
+.vscode/
+.vscode-server/
+*.code-workspace
+
+# --- Secrets ---
+.env
+*.env
+.env.*
+secrets.*
+*secret*
+
+# --- Logs / Temp ---
+*.log
+logs/
+tmp/
+temp/
+.cache/
+.DS_Store
+Thumbs.db
+
+# --- Project: generated outputs ---
+output/
+semantic_index/
+embeddings/
+knowledge_chunks.jsonl
+*.jsonl
+*.npy
+
+# --- PDFs / source docs ---
+input/pdfs/
+input/pdf/
+input/**/manuals/
+**/*.pdf
+
+# --- Optional: model artifacts ---
+ml/model.pkl
+*.pkl
+*.joblib

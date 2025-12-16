@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>PDFDoc Report</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>PDFDoc / Kran-Tools – Report</h1>
+    <p><a href="{{ url_for('index') }}">← Zurück zur Startseite</a></p>
+  </header>
+
+  <main>
+    {% if content %}
+      <h2>{{ filename }}</h2>
+      <pre class="report-content">{{ content }}</pre>
+    {% else %}
+      <p>Es wurde noch kein Report gefunden.</p>
+    {% endif %}
+  </main>
+
+  <footer>
+    <p>PDFDoc / Kran-Tools</p>
+  </footer>
+</body>
+</html>
