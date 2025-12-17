@@ -16,14 +16,26 @@ Ziel:
 
 Die Struktur passt auf die aktuelle export_for_embeddings.py-Logik:
   bmk_lists[wagen]["components"] -> bmk_component-Chunks
+
+WICHTIG (Stabilitäts-Regel):
+- BMK-Einträge werden IMMER mit "lang" versehen (de/en/fr/es/it).
+- Default-Filter (Webapp): nur "de".
+- Parser bleibt kompatibel: bestehende Felder bleiben unverändert, "lang" kommt hinzu.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+
+# Lauf aus repo-root oder direkt aus scripts/ ermöglichen
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from pypdf import PdfReader  # pip install pypdf
 
@@ -32,8 +44,17 @@ import pypdfium2 as pdfium   # pip install pypdfium2
 from PIL import Image        # pip install pillow
 import pytesseract           # pip install pytesseract
 
-from scripts.model_detection import detect_model as detect_model_generic
-from scripts.config_loader import get_config
+try:
+    from scripts.model_detection import detect_model as detect_model_generic
+except Exception:
+    from model_detection import detect_model as detect_model_generic
+
+try:
+    from scripts.config_loader import get_config
+except Exception:
+    # falls config_loader.py nicht in scripts liegt:
+    from config_loader import get_config
+
 
 # --------------------------------------------------------------------
 # Basis-Pfade & Konfiguration
@@ -47,16 +68,11 @@ if not _input_dir.is_absolute():
 else:
     INPUT_ROOT = _input_dir
 
-# INPUT_ROOT ist jetzt z.B. .../input
-INPUT_ROOT.mkdir(parents=True, exist_ok=True)
-
 _models_dir = Path(CONFIG.models_dir)
 if not _models_dir.is_absolute():
     OUTPUT_MODELS_DIR = BASE_DIR / _models_dir
 else:
     OUTPUT_MODELS_DIR = _models_dir
-
-OUTPUT_MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Tesseract-Pfad + OCR-Einstellungen aus config.yaml
 TESSERACT_CMD: Optional[str] = getattr(CONFIG, "tesseract_cmd", None)
@@ -81,105 +97,122 @@ BMK_CODE_RE = re.compile(
     r"^(?=.*\d)[A-Za-z][A-Za-z0-9_]{0,10}(?:\.[A-Za-z0-9_]{1,10})?\*?$"
 )
 
+# --------------------------------------------------------------------
+# Text-Cleaner (wichtig für "umgeschlüsselt"/PDF-Extraktions-Artefakte)
+# --------------------------------------------------------------------
+_BAD_CHARS_RE = re.compile(r"[\uFFFC\uFFFD\uFEFF]")  # OBJ-REPL / replacement / BOM
+
+def _clean_line(s: str) -> str:
+    # In Liebherr-PDFs taucht manchmal ein "￾" als Trennzeichen im Wort auf
+    # (z.B. Rundumkenn￾leuchte). Das entfernen wir.
+    s = (s or "").replace("￾", "")
+    s = _BAD_CHARS_RE.sub("", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
 # --------------------------------------------------------------------
-# Hilfsfunktionen: Sprachschnitt + Zeilenbereinigung
+# Sprach-Erkennung (für BMK: de/en/fr/es/it)
 # --------------------------------------------------------------------
-def _extract_german_part(page_text: str) -> str:
-    """
-    Schneidet (wo möglich) nach dem deutschen Teil ab, bevor die
-    englische/französische/spanische Version beginnt.
+_LANG_MARKERS = {
+    "de": [
+        "oberwagen", "unterwagen", "krankabine", "steuerstand", "beleuchtung",
+        "warnleuchte", "rundumkennleuchte", "widerstand", "winkelgeber", "kanal",
+        "hinweis", "ersteller", "ausgabe", "schmier", "druck", "geber", "modul",
+    ],
+    "en": [
+        "superstructure", "chassis", "crane cabin", "control stand", "lighting",
+        "warning", "resistor", "module", "angle sensor", "channel", "note", "issue",
+        "originator", "pressure", "central greasing",
+    ],
+    "fr": [
+        "tourelle", "porteur", "cabine", "poste de commande", "eclairage",
+        "avertisseur", "module", "résistance", "capteur", "canal", "consigne",
+        "rédacteur", "édition", "pression",
+    ],
+    "es": [
+        "superstructura", "chasis", "cabina", "puesto de mando", "iluminación",
+        "advertencia", "módulo", "modulo", "resistencias", "codificador", "ángulo",
+        "angulo", "canal", "nota", "edición", "presión", "presion",
+    ],
+    "it": [
+        "torretta", "carro", "cabina", "banco di comando", "illuminazione",
+        "avviso", "modulo", "resistenza", "sensore", "canale", "nota", "edizione",
+        "pressione",
+    ],
+}
 
-    Bei OW-Dokumenten findet man z.B. "LTM 1110-5.1 from 043250 ...".
-    Bei UW ist die Heuristik nicht immer gegeben, daher fällt der
-    Schnitt dann einfach weg.
-    """
-    markers = [
-        "LTM 1110-5.1 from",
-        "LTM 1090-4.2 from",
-        "LTM 1250-5.1 from",
-        "LTC 1050-3.1 from",
-        "LTF 1045-4.1 from",
-        "from 0",  # sehr generisch, aber in diesen PDFs typisch
-    ]
-    idxs = [page_text.find(m) for m in markers if m in page_text]
-    if idxs:
-        cut = min(idxs)
-        return page_text[:cut]
-    return page_text
+def _detect_lang(text: str) -> str:
+    t = (text or "").lower()
+    if not t.strip():
+        return "de"
 
+    scores = {k: 0 for k in _LANG_MARKERS.keys()}
+    for lang, markers in _LANG_MARKERS.items():
+        for m in markers:
+            if m in t:
+                scores[lang] += 1
 
+    best_lang, best_score = max(scores.items(), key=lambda kv: kv[1])
+    return best_lang if best_score > 0 else "de"
+
+# --------------------------------------------------------------------
+# Hilfsfunktionen: Zeilenbereinigung
+# --------------------------------------------------------------------
 def _normalize_lines(text: str) -> List[str]:
-    """
-    Entfernt offensichtliche Kopf-/Fußzeilen und leere Zeilen.
-    """
     lines: List[str] = []
-    for raw in text.splitlines():
-        line = raw.strip()
+    for raw in (text or "").splitlines():
+        line = _clean_line(raw)
         if not line:
             continue
+
+        # Header/Fuß-Zeugs (mehrsprachig)
         if line.startswith("Copyright by"):
             continue
-        # deutsche BMK-Kopfzeilen
-        if "BMK" in line and "Bauteileübersicht" in line:
-            continue
-        # andere Sprachvarianten können bleiben, stören aber nicht massiv
         if "LWE - Customer Service" in line:
             continue
+        if line.lower().startswith("kundendienst-technische dokumentation"):
+            continue
+        if line.lower().startswith("service department-technical documentation"):
+            continue
+        if line.lower().startswith("service après-vente"):
+            continue
+        if line.lower().startswith("documentación técnica"):
+            continue
+        if line.lower().startswith("servizio di assistenza"):
+            continue
+
+        # typisches Meta
+        if line.lower().startswith("ersteller:") or line.lower().startswith("originator:") or line.lower().startswith("rédacteur"):
+            continue
+
         lines.append(line)
     return lines
-
 
 # --------------------------------------------------------------------
 # OCR-Fallback (optional)
 # --------------------------------------------------------------------
 def ocr_pdf_page(pdf_path: Path, page_index: int) -> str:
-    """
-    Rendert eine Seite des PDFs als Bild und führt Tesseract-OCR aus.
-    page_index ist 0-basiert.
-    """
     pdf = pdfium.PdfDocument(str(pdf_path))
     page = pdf.get_page(page_index)
 
-    # ca. 200 DPI
-    bitmap = page.render(scale=200 / 72)
+    bitmap = page.render(scale=200 / 72)  # ca. 200 DPI
     pil_image: Image.Image = bitmap.to_pil()
 
     page.close()
     pdf.close()
 
-    text = pytesseract.image_to_string(pil_image, lang=OCR_LANG)
-    return text
-
+    return pytesseract.image_to_string(pil_image, lang=OCR_LANG)
 
 # --------------------------------------------------------------------
 # Parser für eine BMK-PDF (Unterwagen / Oberwagen)
 # --------------------------------------------------------------------
 def parse_bmk_pdf(pdf_path: Path, model_name: str, wagon: str) -> Dict[str, Any]:
     """
-    Liest eine BMK-PDF und extrahiert eine Komponentenliste.
-
-    Struktur des Rückgabe-Objekts:
-    {
-        "type": "BMK_LIST",
-        "model": "...",
-        "wagon": "unterwagen" | "oberwagen",
-        "source_file": "...pdf",
-        "component_count": N,
-        "components": [
-            {
-                "bmk": "S302",
-                "model": "LTM1110-5.1",
-                "wagon": "unterwagen",
-                "area": "Krankabine",
-                "group": "Steuerstand",
-                "title": "LICCON-Monitor, Pedale",
-                "description": "Zündstartschalter\nOberwagen\n...",
-                "lsb_address": "2 10"
-            },
-            ...
-        ]
-    }
+    NEU:
+    - Sprachblock-Erkennung via Bereichsüberschriften:
+      "Oberwagen allgemein:" -> de, "Superstructure general:" -> en, ...
+    - Nur die "de"-Blöcke werden in components aufgenommen.
+    - Jeder Eintrag bekommt component["lang"].
     """
     reader = PdfReader(str(pdf_path))
     components: List[Dict[str, Any]] = []
@@ -190,18 +223,15 @@ def parse_bmk_pdf(pdf_path: Path, model_name: str, wagon: str) -> Dict[str, Any]
     current_entry: Optional[Dict[str, Any]] = None
     awaiting_lsb_addr = False
 
+    current_lang = "de"
+    seen_langs = set()
+
     for page_index, page in enumerate(reader.pages):
         page_no = page_index + 1
-
-        # 1) Normaler pypdf-Text
         raw_text = page.extract_text() or ""
 
-        # 2) Optionaler OCR-Fallback, falls kein Text und OCR aktiviert
         if OCR_ENABLED and not raw_text.strip():
-            print(
-                f"  [Seite {page_no}] BMK: Fallback auf OCR "
-                f"(leer, Länge={len(raw_text)})"
-            )
+            print(f"  [Seite {page_no}] BMK: Fallback auf OCR (leer)")
             try:
                 raw_text = ocr_pdf_page(pdf_path, page_index)
             except Exception as e:
@@ -211,35 +241,37 @@ def parse_bmk_pdf(pdf_path: Path, model_name: str, wagon: str) -> Dict[str, Any]
         if not raw_text.strip():
             continue
 
-        # nur den deutschen Abschnitt verwenden, soweit erkennbar
-        de_text = _extract_german_part(raw_text)
-        lines = _normalize_lines(de_text)
+        lines = _normalize_lines(raw_text)
 
         for line in lines:
-            # 1) Bereichsüberschrift (z.B. "Krankabine:")
+            # Bereichsüberschrift (…:)
             if line.endswith(":") and not BMK_CODE_RE.match(line):
-                current_area = line.rstrip(":").strip()
-                current_group = None
-                current_title = None
-                awaiting_lsb_addr = False
+                current_lang = _detect_lang(line)
+                seen_langs.add(current_lang)
+
+                # Bereichs-Kontext nur in DE weiterführen
+                if current_lang == "de":
+                    current_area = line.rstrip(":").strip()
+                    current_group = None
+                    current_title = None
+                    awaiting_lsb_addr = False
                 continue
 
-            # 2) Innerhalb eines Bereichs: Gruppe + "Titel"
-            #    Beispiel:
-            #       Krankabine:
-            #       Steuerstand           -> group
-            #       LICCON-Monitor, ...  -> title
+            # ab hier: nur DE verarbeiten
+            if current_lang != "de":
+                continue
+
+            # Gruppe / Titel (DE)
             if current_area and not BMK_CODE_RE.match(line):
-                if current_group is None and len(line) <= 40:
+                if current_group is None and len(line) <= 60:
                     current_group = line.strip()
                     continue
-                if current_title is None and len(line) <= 80:
+                if current_title is None and len(line) <= 120:
                     current_title = line.strip()
                     continue
 
-            # 3) BMK-Zeile: neue Komponente starten
+            # BMK-Code (DE)
             if BMK_CODE_RE.match(line):
-                # Vorherigen Eintrag abschließen
                 if current_entry is not None:
                     current_entry["description"] = "\n".join(
                         current_entry.get("description_lines", [])
@@ -256,14 +288,14 @@ def parse_bmk_pdf(pdf_path: Path, model_name: str, wagon: str) -> Dict[str, Any]
                     "title": current_title,
                     "description_lines": [],
                     "lsb_address": None,
+                    "lang": "de",
                 }
                 awaiting_lsb_addr = False
                 continue
 
-            # 4) Zeilen, die zu einem aktuellen BMK gehören
+            # Beschreibung (DE)
             if current_entry is not None:
-                # LSB-Adresse: Muster "LSB Adr" (z.B. "LSB Adr" / nächste Zeile "2 10")
-                if line.startswith("LSB Adr"):
+                if line.lower().startswith("lsb") and ("adr" in line.lower() or "adresse" in line.lower() or "addr" in line.lower()):
                     current_entry["description_lines"].append(line)
                     awaiting_lsb_addr = True
                     continue
@@ -274,10 +306,8 @@ def parse_bmk_pdf(pdf_path: Path, model_name: str, wagon: str) -> Dict[str, Any]
                     awaiting_lsb_addr = False
                     continue
 
-                # alle anderen Zeilen als Beschreibungszeilen anhängen
                 current_entry["description_lines"].append(line)
 
-    # Letzten Eintrag abschließen
     if current_entry is not None:
         current_entry["description"] = "\n".join(
             current_entry.get("description_lines", [])
@@ -292,32 +322,29 @@ def parse_bmk_pdf(pdf_path: Path, model_name: str, wagon: str) -> Dict[str, Any]
         "source_file": pdf_path.name,
         "component_count": len(components),
         "components": components,
+        "languages_in_source": sorted(seen_langs) if seen_langs else ["de"],
     }
-
 
 # --------------------------------------------------------------------
 # Modell- & Wagen-Erkennung aus Dateinamen
 # --------------------------------------------------------------------
 def detect_model_and_wagon_from_path(pdf_path: Path) -> tuple[str, str]:
     """
-    Ermittelt (Modell, Wagen) aus Dateinamen + Inhalt.
-
-    In der neuen Struktur wird das Modell primär aus dem Ordnernamen
-    gezogen, diese Funktion bleibt aber als Fallback und für OW/UW-Erkennung.
+    Verbesserte Wagen-Erkennung:
+    - akzeptiert auch Dateinamen wie "BMK OW LTM 1090-4.2.pdf"
+    - akzeptiert "oberwagen/unterwagen" im Namen
     """
     name = pdf_path.name.lower()
 
-    if "_uw_" in name:
+    wagon = "unknown"
+    if re.search(r"(?<![a-z0-9])uw(?![a-z0-9])|unterwagen", name):
         wagon = "unterwagen"
-    elif "_ow_" in name:
+    elif re.search(r"(?<![a-z0-9])ow(?![a-z0-9])|oberwagen", name):
         wagon = "oberwagen"
-    else:
-        wagon = "unknown"
 
     model = detect_model_generic(pdf_path)
 
     if not model:
-        # Fallback: z.B. shb_ltm_1110_5-1_uw_02_1000_043250_de_en_fr_es.pdf
         m = re.search(r"(ltm|ltc|ltf)[ _]?(\d{3,4})[_-](\d)-(\d)", name)
         if m:
             prefix, num4, a, b = m.groups()
@@ -327,18 +354,10 @@ def detect_model_and_wagon_from_path(pdf_path: Path) -> tuple[str, str]:
 
     return model, wagon
 
-
 # --------------------------------------------------------------------
 # Input-Discovery: neue Struktur input/<MODEL>/bmk/*.pdf
 # --------------------------------------------------------------------
 def discover_bmk_pdfs() -> List[Tuple[str, Path]]:
-    """
-    Sucht BMK-PDFs in der neuen Struktur:
-
-        input/<MODEL>/bmk/*.pdf
-
-    und gibt (model_name, pdf_path) zurück.
-    """
     pairs: List[Tuple[str, Path]] = []
     for model_dir in sorted(INPUT_ROOT.iterdir()):
         if not model_dir.is_dir():
@@ -350,7 +369,6 @@ def discover_bmk_pdfs() -> List[Tuple[str, Path]]:
         for pdf in sorted(bmk_dir.glob("*.pdf")):
             pairs.append((model_name, pdf))
     return pairs
-
 
 # --------------------------------------------------------------------
 # Verarbeitung aller BMK-PDFs
@@ -368,7 +386,6 @@ def process_all_bmk_pdfs() -> None:
     for folder_model, pdf_path in pairs:
         print(f"Verarbeite BMK-PDF: {pdf_path.name}")
 
-        # OW/UW aus Dateinamen ermitteln, Modell aus Ordnername
         detected_model, wagon = detect_model_and_wagon_from_path(pdf_path)
         model = folder_model
 
@@ -381,7 +398,10 @@ def process_all_bmk_pdfs() -> None:
         print(f"  -> Modell: {model}, Wagen: {wagon}")
 
         data = parse_bmk_pdf(pdf_path, model, wagon)
-        print(f"  -> Komponenten gefunden: {data['component_count']}")
+        print(
+            f"  -> Komponenten gefunden (DE): {data['component_count']} | "
+            f"Sprachen im PDF: {data.get('languages_in_source')}"
+        )
 
         model_dir = OUTPUT_MODELS_DIR / model
         model_dir.mkdir(parents=True, exist_ok=True)
@@ -399,12 +419,10 @@ def process_all_bmk_pdfs() -> None:
 
         print(f"  -> JSON gespeichert: {output_file}")
 
-
 def main() -> None:
-    print("=== BMK-PARSER (mit Modellerkennung, Config & OCR-Fallback) ===")
+    print("=== BMK-PARSER (Config & OCR-Fallback) ===")
     process_all_bmk_pdfs()
     print("=== FERTIG ===")
-
 
 if __name__ == "__main__":
     main()
