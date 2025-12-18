@@ -30,6 +30,50 @@ def write_json(path: Path, obj: Any) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def load_all_spl_references(model_dir: Path) -> dict:
+    files = sorted(model_dir.glob("*_SPL_REFERENCES.json"))
+    bmk_set = set()
+    sheet_set = set()
+    file_names = []
+
+    for fp in files:
+        doc = read_json(fp)
+        file_names.append(fp.name)
+
+        if isinstance(doc, dict):
+            for x in (doc.get("bmk_refs") or []):
+                if isinstance(x, str) and x.strip():
+                    bmk_set.add(x.strip())
+                elif isinstance(x, dict):
+                    v = (x.get("bmk") or "").strip()
+                    if v:
+                        bmk_set.add(v)
+            for x in (doc.get("sheet_refs") or []):
+                if isinstance(x, str) and x.strip():
+                    sheet_set.add(x.strip())
+                elif isinstance(x, dict):
+                    v = (x.get("sheet_raw") or "").strip()
+                    if not v:
+                        ref = (x.get("ref") or "").strip()
+                        sheet = (x.get("sheet") or "").strip()
+                        coord = (x.get("coord") or "").strip()
+                        if ref and sheet and coord:
+                            v = f"{ref}/{sheet}.{coord}"
+                    if v:
+                        sheet_set.add(v)
+        elif isinstance(doc, list):
+            # falls mal als Liste gespeichert wurde
+            for x in doc:
+                if isinstance(x, str) and x.strip():
+                    bmk_set.add(x.strip())
+
+    return {
+        "files": file_names,
+        "bmk_refs": sorted(bmk_set),
+        "sheet_refs": sorted(sheet_set),
+    }
+
+
 # ----------------------------
 # Helpers: LSB key parsing
 # ----------------------------
@@ -341,6 +385,15 @@ def summarize_bmk(entry: Dict[str, Any]) -> str:
     return "BMK Treffer"
 
 
+def _shorten_text(text: Any, max_len: int = 400) -> str:
+    if not text:
+        return ""
+    s = str(text).strip()
+    if len(s) <= max_len:
+        return s
+    return s[:max_len].rstrip()
+
+
 # ----------------------------
 # Merge pro Modell
 # ----------------------------
@@ -361,6 +414,70 @@ def merge_model(model: str) -> None:
     # BMK
     bmk_blocks = load_bmk_blocks(model_dir, model)
     bmk_index = build_bmk_lsb_index(bmk_blocks)
+
+    spl_references = load_all_spl_references(model_dir)
+
+    # SPL-References
+    spl_doc = read_json(model_dir / f"{model}_SPL_REFERENCES.json")
+    spl_chunks: List[Dict[str, Any]] = []
+    spl_pages = spl_doc.get("spl_pages") if isinstance(spl_doc, dict) else []
+    spl_pdf = spl_doc.get("source_file") if isinstance(spl_doc, dict) else ""
+    if isinstance(spl_pages, list):
+        for page in spl_pages:
+            if not isinstance(page, dict):
+                continue
+            spl_chunks.append(
+                {
+                    "model": model,
+                    "source_type": "spl_reference",
+                    "page": page.get("page"),
+                    "title": page.get("title") or "",
+                    "tokens": page.get("tokens") or [],
+                    "text": _shorten_text(page.get("text")),
+                    "pdf_file": spl_pdf,
+                }
+            )
+
+    spl_files = spl_references.get("files") if isinstance(spl_references, dict) else []
+    spl_source_file = spl_files[0] if isinstance(spl_files, list) and spl_files else None
+
+    for ref in spl_references.get("bmk_refs", []) if isinstance(spl_references, dict) else []:
+        if not ref:
+            continue
+        spl_chunks.append(
+            {
+                "model": model,
+                "source_type": "spl_reference",
+                "title": "Schaltplan-Referenz",
+                "text": f"SPL Referenz: {ref}",
+                "tokens": [ref],
+            }
+        )
+
+    for item in spl_references.get("sheet_refs", []) if isinstance(spl_references, dict) else []:
+        ref = ""
+        if isinstance(item, dict):
+            ref = item.get("sheet_raw") or ""
+            if not ref:
+                ref = f"{item.get('ref', '')}/{item.get('sheet', '')}.{item.get('coord', '')}".strip()
+        if not ref:
+            ref = str(item).strip()
+        if not ref:
+            continue
+        spl_chunks.append(
+            {
+                "model": model,
+                "source_type": "spl_reference",
+                "title": "Schaltplan-Referenz",
+                "text": f"SPL Referenz: {ref}",
+                "tokens": [ref],
+            }
+        )
+
+    for chunk in spl_chunks:
+        st = chunk.get("source_type")
+        if isinstance(st, str) and st.lower() == "spl_reference":
+            chunk["source_type"] = "spl_reference"
 
     # Handbücher (optional, aktuell 0 – bleibt so, bis manual-parser existiert)
     handbook_samples: List[Dict[str, Any]] = []
@@ -414,6 +531,8 @@ def merge_model(model: str) -> None:
         "handbook_samples": handbook_samples,
         "lec_errors": lec_errors,
         "bmk_blocks": bmk_blocks,
+        "spl_references": spl_references,
+        "knowledge_chunks": spl_chunks,
         "bmk_lsb_index_size": len(bmk_index),
         "stats": {
             "handbook_samples": len(handbook_samples),
@@ -421,6 +540,9 @@ def merge_model(model: str) -> None:
             "bmk_blocks": len(bmk_blocks),
             "bmk_lsb_keys": len(bmk_index),
             "lec_with_bmk": lec_with_bmk,
+            "spl_files": len(spl_references.get("files", [])),
+            "spl_bmk_refs": len(spl_references.get("bmk_refs", [])),
+            "spl_sheet_refs": len(spl_references.get("sheet_refs", [])),
         },
     }
 
@@ -428,6 +550,7 @@ def merge_model(model: str) -> None:
         "model": model,
         "meta": {"format": "GPT51_FULL_KNOWLEDGE"},
         **full_legacy,
+        "spl_references": spl_references,
     }
 
     out_legacy = model_dir / f"{model}_FULL_KNOWLEDGE.json"
@@ -441,6 +564,9 @@ def merge_model(model: str) -> None:
     print(f"   LEC-Fehler:         {len(lec_errors)}")
     print(f"   BMK-Blocks:         {len(bmk_blocks)}")
     print(f"   BMK-LSB-Keys:       {len(bmk_index)}")
+    print(f"   SPL-Files:          {len(spl_references.get('files', []))}")
+    print(f"   SPL-BMK-Refs:       {len(spl_references.get('bmk_refs', []))}")
+    print(f"   SPL-Sheet-Refs:     {len(spl_references.get('sheet_refs', []))}")
     print(f"   LEC mit BMK-Link:   {lec_with_bmk}")
     print(f"   -> FULL_KNOWLEDGE (GPT51) geschrieben: {out_gpt51}")
     print(f"   -> FULL_KNOWLEDGE (legacy) geschrieben: {out_legacy}")

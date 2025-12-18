@@ -9,9 +9,8 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-from flask import Flask, flash, jsonify, redirect, render_template, render_template_string, request, session, url_for
 from webapp.telegram_notify import send_telegram
+from flask import Flask, flash, jsonify, redirect, render_template, render_template_string, request, session, url_for
 
 # ============================================================
 # Projekt-Root sicher setzen (damit imports aus /scripts und /config funktionieren)

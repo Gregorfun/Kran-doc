@@ -76,6 +76,16 @@ BMK_PATTERN = re.compile(
     r")\b"
 )
 
+# einfache BMK-Codes wie A81, S304, A104, X221, F12, K15, M3
+BMK_SIMPLE_PATTERN = re.compile(r"\b(?:[A-Z]{1,3}\d{1,4})(?:\*)?\b")
+
+X_PATTERN = re.compile(r"\bX\d{1,4}\b")
+F_PATTERN = re.compile(r"\bF\d{1,3}\b")
+S_PATTERN = re.compile(r"\bS\d{1,4}\b")
+A_PATTERN = re.compile(r"\bA\d{1,4}\b")
+LSB_PATTERN = re.compile(r"\bLSB\d{1,2}\b")
+CAN_PATTERN = re.compile(r"\bCAN(?:-H|-L)?\b")
+
 # Blatt-/Koordinaten-Referenzen: X2/40.E3, 173/38.D6, PWM/46.C2
 SHEET_REF_PATTERN = re.compile(
     r"\b([A-Z0-9\+\-]+)\/(\d{1,3})\.([A-Z]\d)\b"
@@ -148,74 +158,155 @@ def ocr_pdf_page(pdf_path: Path, page_index: int) -> str:
 # ---------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------
-def extract_text_safely(pdf_path: Path) -> str:
+def extract_pages_text(pdf_path: Path) -> List[Dict[str, Any]]:
     """
     Lies alle Seiten des SPL-PDFs ein.
     Wenn der Text nach Gibberish aussieht, wird OCR verwendet.
     """
     reader = PdfReader(str(pdf_path))
-    texts: List[str] = []
+    pages: List[Dict[str, Any]] = []
 
     for page_index, page in enumerate(reader.pages):
         raw = page.extract_text() or ""
 
         if is_gibberish(raw):
             print(f"  -> Seite {page_index+1}: Gibberish erkannt, OCR-Fallback")
-            ocr_text = ocr_pdf_page(pdf_path, page_index)
-            texts.append(ocr_text)
-        else:
-            texts.append(raw)
+            raw = ocr_pdf_page(pdf_path, page_index)
 
-    return "\n".join(texts)
+        pages.append({"page": page_index, "text": raw})
+
+    return pages
 
 
-def parse_spl_text(full_text: str) -> Dict[str, Any]:
+def extract_toc_index(pages_text: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    toc_index: List[Dict[str, Any]] = []
+    toc_pattern = re.compile(r"^(?P<title>.+?)\s*/\s*(?P<ref>\d{1,4})\s*$")
+
+    for page in pages_text[:5]:
+        for line in page.get("text", "").splitlines():
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+            match = toc_pattern.match(line_stripped)
+            if not match:
+                continue
+            title = match.group("title").strip()
+            ref = match.group("ref").strip()
+            if not title:
+                continue
+            toc_index.append({"title": title, "ref": ref, "page_hint": int(ref)})
+
+    return toc_index
+
+
+def parse_spl_text(pages: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Extrahiert BMK-Referenzen und Blatt-Referenzen aus dem SPL-Text.
     Ergebnis:
         {
           "bmk_refs": [...],
-          "sheet_refs": [...]
+          "sheet_refs": [...],
+          "spl_pages": [...]
         }
     """
-    lines = full_text.splitlines()
-    bmk_refs: List[Dict[str, Any]] = []
+    bmk_tokens: set[str] = set()
     sheet_refs: List[Dict[str, Any]] = []
+    spl_pages: List[Dict[str, Any]] = []
+    global_line_no = 0
+    toc_index = extract_toc_index(pages)
+    toc_by_page = {entry["page_hint"]: entry["title"] for entry in toc_index}
 
-    for line_no, line in enumerate(lines, start=1):
-        line_stripped = line.strip()
-        if not line_stripped:
-            continue
+    for page in pages:
+        page_text = page.get("text", "")
+        lines = page_text.splitlines()
+        tokens: set[str] = set()
+        page_sheet_refs: List[Dict[str, Any]] = []
+        cleaned_lines: List[str] = []
 
-        if is_page_footer(line_stripped):
-            continue
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
 
-        # BMK-Referenzen
-        for m in BMK_PATTERN.finditer(line_stripped):
-            bmk_refs.append(
-                {
-                    "bmk": m.group(1),
-                    "line": line_no,
-                    "context": line_stripped,
-                }
-            )
+            if is_page_footer(line_stripped):
+                continue
 
-        # Blatt/Koordinate
-        for m in SHEET_REF_PATTERN.finditer(line_stripped):
-            sheet_refs.append(
-                {
+            global_line_no += 1
+            cleaned_lines.append(line_stripped)
+
+            # BMK-Referenzen
+            for m in BMK_PATTERN.finditer(line_stripped):
+                token = m.group(1)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            for m in BMK_SIMPLE_PATTERN.finditer(line_stripped):
+                token = m.group(0)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            for m in X_PATTERN.finditer(line_stripped):
+                token = m.group(0)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            for m in F_PATTERN.finditer(line_stripped):
+                token = m.group(0)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            for m in S_PATTERN.finditer(line_stripped):
+                token = m.group(0)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            for m in A_PATTERN.finditer(line_stripped):
+                token = m.group(0)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            for m in LSB_PATTERN.finditer(line_stripped):
+                token = m.group(0)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            for m in CAN_PATTERN.finditer(line_stripped):
+                token = m.group(0)
+                tokens.add(token)
+                bmk_tokens.add(token)
+
+            # Blatt/Koordinate
+            for m in SHEET_REF_PATTERN.finditer(line_stripped):
+                ref = {
                     "sheet_raw": m.group(0),
                     "ref": m.group(1),
                     "sheet": m.group(2),
                     "coord": m.group(3),
-                    "line": line_no,
+                    "line": global_line_no,
                     "context": line_stripped,
                 }
-            )
+                page_sheet_refs.append(ref)
+                sheet_refs.append(ref)
+
+        cleaned_text = "\n".join(cleaned_lines)
+        title = ""
+        if len(cleaned_text) < 40:
+            title = toc_by_page.get(page.get("page", 0) + 1, "")
+
+        spl_pages.append(
+            {
+                "page": page.get("page"),
+                "text": cleaned_text,
+                "tokens": sorted(tokens),
+                "sheet_refs": page_sheet_refs,
+                "title": title,
+            }
+        )
 
     return {
-        "bmk_refs": bmk_refs,
+        "bmk_refs": sorted(bmk_tokens),
         "sheet_refs": sheet_refs,
+        "spl_pages": spl_pages,
     }
 
 
@@ -257,15 +348,17 @@ def process_spl_pdf(pdf_path: Path, model_hint: Optional[str] = None) -> None:
 
     print(f"  -> Modell: {model}")
 
-    full_text = extract_text_safely(pdf_path)
+    pages = extract_pages_text(pdf_path)
+    full_text = "\n".join(page["text"] for page in pages)
 
     if not full_text.strip():
         print("  -> WARNUNG: Kein Text erkannt, breche für diese Datei ab.")
         return
 
-    parsed = parse_spl_text(full_text)
+    parsed = parse_spl_text(pages)
     bmk_refs = parsed["bmk_refs"]
     sheet_refs = parsed["sheet_refs"]
+    spl_pages = parsed["spl_pages"]
 
     print(f"  -> BMK-Referenzen:   {len(bmk_refs)}")
     print(f"  -> Blatt-Referenzen: {len(sheet_refs)}")
@@ -283,6 +376,7 @@ def process_spl_pdf(pdf_path: Path, model_hint: Optional[str] = None) -> None:
         "sheet_ref_count": len(sheet_refs),
         "bmk_refs": bmk_refs,
         "sheet_refs": sheet_refs,
+        "spl_pages": spl_pages,
     }
 
     with output_file.open("w", encoding="utf-8") as f:

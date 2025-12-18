@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import uuid
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Iterator
 
@@ -10,6 +12,23 @@ from typing import Any, Dict, List, Iterator
 BASE_DIR = Path(__file__).resolve().parents[1]  # .../kran-tools
 MODELS_DIR = BASE_DIR / "output" / "models"
 OUT_CHUNKS = BASE_DIR / "output" / "embeddings" / "knowledge_chunks.jsonl"
+
+bmk_freq = Counter()
+BMK_TOKEN_RE = re.compile(r"\b[A-Z]{1,3}\d{1,4}\*?\b")
+
+
+def _env_int(name: str, default: int) -> int:
+    v = (os.getenv(name) or "").strip()
+    if not v:
+        return default
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
+SPL_BMK_LIMIT = _env_int("KRANDOC_SPL_BMK_LIMIT", 2000)
+SPL_SHEET_LIMIT = _env_int("KRANDOC_SPL_SHEET_LIMIT", 2000)
 
 
 # ---------------------------------------------------------------------------
@@ -131,11 +150,18 @@ def clean_bmk_description(desc: Any) -> str:
     return s
 
 
+def bump_bmk_freq_from_text(text: str) -> None:
+    if not text:
+        return
+    for tok in BMK_TOKEN_RE.findall(text.upper()):
+        bmk_freq[tok] += 1
+
+
 # ---------------------------------------------------------------------------
 # Export: MANUALS
 # ---------------------------------------------------------------------------
 
-def export_manuals(data: Dict[str, Any], model: str, out_file) -> int:
+def export_manuals(data: Dict[str, Any], model: str, out_file, model_bmk_freq: Counter) -> int:
     # unterstützt mehrere mögliche Keys
     samples = (
         data.get("samples")
@@ -154,7 +180,11 @@ def export_manuals(data: Dict[str, Any], model: str, out_file) -> int:
         if not txt:
             continue
 
+        for tok in BMK_TOKEN_RE.findall((txt or "").upper()):
+            model_bmk_freq[tok] += 1
+
         meta = {"section": entry.get("section") or entry.get("title")}
+        bump_bmk_freq_from_text(txt)
         write_chunk(out_file, model=model, source="manual", text=txt, meta=meta)
         count += 1
 
@@ -184,7 +214,7 @@ def resolve_lec_list(data: Any) -> List[Dict[str, Any]]:
     return []
 
 
-def export_lec_errors(data: Dict[str, Any], model: str, out_file) -> int:
+def export_lec_errors(data: Dict[str, Any], model: str, out_file, model_bmk_freq: Counter) -> int:
     """
     1. Zeile im Text = NUR der Fehlercode (z.B. '1A3153')
     Danach Kurztext, Langtext, und optional LSB/BMK-Info.
@@ -233,6 +263,9 @@ def export_lec_errors(data: Dict[str, Any], model: str, out_file) -> int:
         if not txt:
             continue
 
+        for tok in BMK_TOKEN_RE.findall((txt or "").upper()):
+            model_bmk_freq[tok] += 1
+
         meta: Dict[str, Any] = {
             "error_code": code,
             "source_type": "lec_error",
@@ -242,6 +275,7 @@ def export_lec_errors(data: Dict[str, Any], model: str, out_file) -> int:
         if bmk_summary:
             meta["has_bmk_link"] = True
 
+        bump_bmk_freq_from_text(txt)
         write_chunk(out_file, model=model, source="lec_error", text=txt, meta=meta)
         count += 1
 
@@ -298,7 +332,7 @@ def iter_bmk_components(data: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
                 yield c
 
 
-def export_bmk_components(data: Dict[str, Any], model: str, out_file) -> int:
+def export_bmk_components(data: Dict[str, Any], model: str, out_file, model_bmk_freq: Counter) -> int:
     components = list(iter_bmk_components(data))
     count = 0
 
@@ -339,6 +373,9 @@ def export_bmk_components(data: Dict[str, Any], model: str, out_file) -> int:
         if not txt:
             continue
 
+        for tok in BMK_TOKEN_RE.findall((txt or "").upper()):
+            model_bmk_freq[tok] += 1
+
         meta: Dict[str, Any] = {
             "bmk": bmk or None,
             "source_type": "bmk",
@@ -352,6 +389,7 @@ def export_bmk_components(data: Dict[str, Any], model: str, out_file) -> int:
         if lsb_addr:
             meta["lsb_address"] = lsb_addr
 
+        bump_bmk_freq_from_text(txt)
         write_chunk(out_file, model=model, source="bmk", text=txt, meta=meta)
         count += 1
 
@@ -414,10 +452,67 @@ def export_bmk_links(data: Dict[str, Any], model: str, out_file) -> int:
         if lsb_key:
             meta["lsb_key"] = lsb_key
 
+        bump_bmk_freq_from_text(txt)
         write_chunk(out_file, model=model, source="lec_bmk_link", text=txt, meta=meta)
         count += 1
 
     print(f"   [LINKS] LEC→BMK: {count}")
+    return count
+
+
+# ---------------------------------------------------------------------------
+# Export: SPL-Referenzen
+# ---------------------------------------------------------------------------
+
+def export_spl_references(data: Dict[str, Any], model: str, out_file) -> int:
+    spl = (data.get("spl_references") or {})
+    if not isinstance(spl, dict):
+        return 0
+
+    bmk_refs = [r.upper() for r in (spl.get("bmk_refs") or []) if isinstance(r, str) and r.strip()]
+    bmk_refs = sorted(set(bmk_refs))
+    bmk_refs.sort(key=lambda r: (bmk_freq.get(r, 0), r), reverse=True)
+    if SPL_BMK_LIMIT > 0:
+        bmk_refs = bmk_refs[:SPL_BMK_LIMIT]
+
+    sheet_refs = [r.strip() for r in (spl.get("sheet_refs") or []) if isinstance(r, str) and r.strip()]
+    if SPL_SHEET_LIMIT > 0:
+        sheet_refs = sheet_refs[:SPL_SHEET_LIMIT]
+
+    seen: set[tuple[str, str]] = set()
+    count = 0
+
+    def write_spl_chunk(ref: str, kind: str) -> None:
+        chunk_id = f"{model}:spl:{kind}:{ref}"
+        meta = {
+            "source_type": "spl_reference",
+            "title": "Schaltplan",
+            "ref": ref,
+            "kind": kind,
+        }
+        obj = {
+            "id": chunk_id,
+            "text": f"SPL {'BMK' if kind == 'bmk_ref' else 'Sheet'}: {ref}",
+            "metadata": {"model": model, "source": "spl_reference", **meta},
+        }
+        out_file.write(json.dumps(obj, ensure_ascii=False) + "\n")
+
+    for ref in bmk_refs:
+        key = ("bmk_ref", ref)
+        if key in seen:
+            continue
+        seen.add(key)
+        write_spl_chunk(ref, "bmk_ref")
+        count += 1
+
+    for ref in sheet_refs:
+        key = ("sheet_ref", ref)
+        if key in seen:
+            continue
+        seen.add(key)
+        write_spl_chunk(ref, "sheet_ref")
+        count += 1
+
     return count
 
 
@@ -441,13 +536,88 @@ def export() -> None:
             if not isinstance(data, dict):
                 continue
 
+            model_bmk_freq = Counter()
             model = data.get("model") or fk.parent.name
             print(f"\n[MODEL] {model}  ({fk.name})")
+            if str(model).lower().startswith("spl_"):
+                print("   [SKIP] SPL-Dokument-Ordner (kein Kranmodell)")
+                continue
 
-            total_chunks += export_manuals(data, model, out)
-            total_chunks += export_lec_errors(data, model, out)
-            total_chunks += export_bmk_components(data, model, out)
+            total_chunks += export_manuals(data, model, out, model_bmk_freq)
+            total_chunks += export_lec_errors(data, model, out, model_bmk_freq)
+            total_chunks += export_bmk_components(data, model, out, model_bmk_freq)
             total_chunks += export_bmk_links(data, model, out)
+
+            spl = (data.get("spl_references") or {})
+            bmk_refs = spl.get("bmk_refs") or []
+            sheet_refs = spl.get("sheet_refs") or []
+
+            # normalize + dedupe BMK refs
+            norm_bmk = []
+            for r in bmk_refs:
+                if isinstance(r, str) and r.strip():
+                    norm_bmk.append(r.strip().upper())
+            norm_bmk = sorted(set(norm_bmk))
+
+            # rank BMK refs by frequency in this model's exported texts
+            norm_bmk.sort(key=lambda r: (model_bmk_freq.get(r, 0), r), reverse=True)
+
+            # apply limit (default 2000)
+            SPL_BMK_LIMIT = int((os.getenv("KRANDOC_SPL_BMK_LIMIT") or "2000").strip() or "2000")
+            if SPL_BMK_LIMIT > 0:
+                norm_bmk = norm_bmk[:SPL_BMK_LIMIT]
+
+            # sheet refs (usually small) - optional separate limit
+            norm_sheet = []
+            for r in sheet_refs:
+                if isinstance(r, str) and r.strip():
+                    norm_sheet.append(r.strip())
+            norm_sheet = sorted(set(norm_sheet))
+
+            SPL_SHEET_LIMIT = int((os.getenv("KRANDOC_SPL_SHEET_LIMIT") or "2000").strip() or "2000")
+            if SPL_SHEET_LIMIT > 0:
+                norm_sheet = norm_sheet[:SPL_SHEET_LIMIT]
+
+            # create chunks
+            for ref in norm_bmk:
+                obj = {
+                    "id": f"{model}:spl:bmk:{ref}",
+                    "model": model,
+                    "source_type": "spl_reference",
+                    "title": "Schaltplan",
+                    "text": f"SPL BMK: {ref}",
+                    "metadata": {
+                        "model": model,
+                        "source": "spl_reference",
+                        "source_type": "spl_reference",
+                        "title": "Schaltplan",
+                        "ref": ref,
+                        "kind": "bmk_ref",
+                    },
+                }
+                out.write(json.dumps(obj, ensure_ascii=False) + "\n")
+                total_chunks += 1
+
+            for ref in norm_sheet:
+                obj = {
+                    "id": f"{model}:spl:sheet:{ref}",
+                    "model": model,
+                    "source_type": "spl_reference",
+                    "title": "Schaltplan",
+                    "text": f"SPL Sheet: {ref}",
+                    "metadata": {
+                        "model": model,
+                        "source": "spl_reference",
+                        "source_type": "spl_reference",
+                        "title": "Schaltplan",
+                        "ref": ref,
+                        "kind": "sheet_ref",
+                    },
+                }
+                out.write(json.dumps(obj, ensure_ascii=False) + "\n")
+                total_chunks += 1
+
+            print(f"   [SPL] export BMK: {len(norm_bmk)}  Sheet: {len(norm_sheet)}")
 
     print(f"\n[RESULT] Gesamt-Chunks: {total_chunks}")
     print(f"[RESULT] JSONL geschrieben nach: {OUT_CHUNKS}")
