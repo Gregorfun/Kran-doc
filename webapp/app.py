@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, render_template_string, request, session, url_for
+from webapp.telegram_notify import send_telegram
 
 # ============================================================
 # Projekt-Root sicher setzen (damit imports aus /scripts und /config funktionieren)
@@ -104,7 +106,23 @@ def _load_app_config() -> AppConfig:
 CONFIG = _load_app_config()
 
 app = Flask(__name__)
-app.secret_key = "kran-doc-secret-key"
+app.secret_key = os.environ.get("KRANDOC_SECRET") or "kran-doc-secret-key"
+app.permanent_session_lifetime = timedelta(hours=24)
+_PIN = os.environ.get("KRANDOC_PIN")
+
+
+def _pin_login_required() -> bool:
+    return bool(_PIN)
+
+
+def _is_authenticated() -> bool:
+    return bool(session.get("pin_authed"))
+
+
+def _safe_next_url(value: Optional[str]) -> str:
+    if not value or not value.startswith("/"):
+        return url_for("index")
+    return value
 
 
 def get_models_dir() -> Path:
@@ -604,12 +622,14 @@ def _enrich_results_with_bmk(results: List[Dict[str, Any]], model_hint: Optional
         if not candidates:
             continue
 
+        # ✅ NEU: nur 1 BMK-Kandidat (deterministisch)
         best = candidates[0]
+
         meta["sensor_bmk"] = best.get("sensor_bmk")
         meta["sensor_title"] = best.get("sensor_title")
         meta["sensor_description"] = best.get("sensor_description")
         meta["sensor_location"] = best.get("sensor_location")
-        meta["bmk_candidates"] = candidates[:5]
+        meta["bmk_candidate_count"] = len(candidates)
 
         # Fürs Frontend: kompakter Anzeige-Name
         bmk_code = best.get("sensor_bmk") or ""
@@ -628,6 +648,9 @@ def _enrich_results_with_bmk(results: List[Dict[str, Any]], model_hint: Optional
 
         meta["sensor_name"] = display or title or desc or None
 
+        # ALT entfernt:
+        # meta["bmk_candidates"] = candidates[:5]
+
     return results
 
 
@@ -641,7 +664,11 @@ def _looks_like_lsb_query(q: str) -> Optional[str]:
         return None
     return normalize_lsb_key(q)
 
-def _bmk_search_in_model(model: str, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+def _bmk_search_in_model(model: str, query: str, limit: int = 1) -> List[Dict[str, Any]]:
+    """
+    Hartes Verhalten: gibt immer max. 1 Ergebnis zurück.
+    """
+    limit = 1
     q = (query or "").strip()
     if not q:
         return []
@@ -654,38 +681,41 @@ def _bmk_search_in_model(model: str, query: str, limit: int = 20) -> List[Dict[s
     if lsb_key:
         idx = _build_bmk_index_for_model(model)
         hits = idx.get(lsb_key, [])
-        for h in hits[:limit]:
-            bmk_code = h.get("sensor_bmk") or ""
-            title = h.get("sensor_title") or ""
-            desc = h.get("sensor_description") or ""
-            display = " – ".join([p for p in [bmk_code, title] if p]).strip()
-            if desc and desc.lower() not in (title.lower(), display.lower()):
-                display = (display + f" — {desc}").strip()
+        if not hits:
+            return []
+        h = hits[0]  # ✅ nur 1
 
-            meta = {
+        bmk_code = h.get("sensor_bmk") or ""
+        title = h.get("sensor_title") or ""
+        desc = h.get("sensor_description") or ""
+        display = " – ".join([p for p in [bmk_code, title] if p]).strip()
+        if desc and desc.lower() not in (title.lower(), display.lower()):
+            display = (display + f" — {desc}").strip()
+
+        meta = {
+            "model": model,
+            "source_type": "bmk_component",
+            "bmk": bmk_code or None,
+            "lsb_bmk_address": h.get("lsb_bmk_address"),
+            "title": title or None,
+            "description": desc or None,
+            "description_clean": desc or None,
+            "sensor_name": display or None,
+            "sensor_location": h.get("sensor_location"),
+            "lsb_key": lsb_key,
+            "raw": h.get("_raw_component"),
+        }
+        results.append(
+            {
                 "model": model,
                 "source_type": "bmk_component",
-                "bmk": bmk_code or None,
-                "lsb_bmk_address": h.get("lsb_bmk_address"),
-                "title": title or None,
-                "description": desc or None,
-                "description_clean": desc or None,
-                "sensor_name": display or None,
-                "sensor_location": h.get("sensor_location"),
-                "lsb_key": lsb_key,
-                "raw": h.get("_raw_component"),
+                "title": display or (bmk_code or "BMK"),
+                "text": desc or title or "",
+                "score": 0.95,
+                "metadata": meta,
             }
-            results.append(
-                {
-                    "model": model,
-                    "source_type": "bmk_component",
-                    "title": display or (bmk_code or "BMK"),
-                    "text": desc or title or "",
-                    "score": 0.95,
-                    "metadata": meta,
-                }
-            )
-        return results[:limit]
+        )
+        return results[:1]
 
     # (2) Exaktmatch BMK-Code / Textsuche
     comps = _collect_bmk_components_for_model(model)
@@ -761,29 +791,46 @@ def _bmk_search_in_model(model: str, query: str, limit: int = 20) -> List[Dict[s
             }
         )
 
-    # Dedup
+    # Dedup + nur bestes Ergebnis
+    if not results:
+        return []
+
+    results_sorted = sorted(results, key=lambda x: float(x.get("score") or 0.0), reverse=True)
+
     seen = set()
-    uniq: List[Dict[str, Any]] = []
-    for r in sorted(results, key=lambda x: float(x.get("score") or 0.0), reverse=True):
+    for r in results_sorted:
         m = r.get("metadata") or {}
         key = (r.get("model"), (m.get("bmk") or ""), (m.get("description_clean") or ""), (m.get("title") or ""))
         if key in seen:
             continue
         seen.add(key)
-        uniq.append(r)
+        return [r]  # ✅ exakt 1
 
-    return uniq[:limit]
+    return []
 
-def _bmk_search_all_models(query: str, model_hint: Optional[str], limit: int = 20) -> List[Dict[str, Any]]:
+
+def _bmk_search_all_models(query: str, model_hint: Optional[str], limit: int = 1) -> List[Dict[str, Any]]:
+    """
+    Hartes Verhalten: gibt immer max. 1 Ergebnis zurück (modellübergreifend).
+    """
+    limit = 1
     models_dir = get_models_dir()
     models = [model_hint] if model_hint else [d.name for d in models_dir.iterdir() if d.is_dir()]
 
-    out: List[Dict[str, Any]] = []
+    best: Optional[Dict[str, Any]] = None
     for m in models:
-        out.extend(_bmk_search_in_model(m, query, limit=limit))
+        hits = _bmk_search_in_model(m, query, limit=1)
+        if not hits:
+            continue
+        cand = hits[0]
+        if best is None or float(cand.get("score") or 0.0) > float(best.get("score") or 0.0):
+            best = cand
 
-    out.sort(key=lambda x: float(x.get("score") or 0.0), reverse=True)
-    return out[:limit]
+        # Score 1.0 ist optimal -> direkt abbrechen
+        if float(cand.get("score") or 0.0) >= 1.0:
+            break
+
+    return [best] if best else []
 
 
 # ============================================================
@@ -825,12 +872,80 @@ def compute_system_status() -> Dict[str, Any]:
         "embedding_index_available": embedding_available,
         "latest_report": latest_report,
         "bmk_language_mode": "heuristic:de-only",
+        "bmk_result_mode": "single",
     }
 
 
 # ============================================================
 # Web-Routen
 # ============================================================
+
+_LOGIN_TEMPLATE = """<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Kran-Doc Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Kran-Doc Login</h1>
+      <p>Bitte PIN eingeben.</p>
+    </header>
+    <main class="page-main">
+      <section class="card section">
+        {% if error %}
+          <p class="status-warn">{{ error }}</p>
+        {% endif %}
+        <form method="post" action="{{ url_for('login', next=next_param) }}">
+          <label for="pin" class="field-label">PIN</label>
+          <input id="pin" name="pin" type="password" autocomplete="current-password">
+          <button type="submit" class="btn primary">Login</button>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+"""
+
+
+@app.before_request
+def require_pin_login():
+    if not _pin_login_required():
+        return None
+
+    path = request.path or ""
+    if path == "/login" or path.startswith("/static/"):
+        return None
+    if _is_authenticated():
+        return None
+    if path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    return redirect(url_for("login", next=path))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not _pin_login_required():
+        return redirect(url_for("index"))
+
+    error = None
+    next_param = request.args.get("next") or ""
+    if next_param and not next_param.startswith("/"):
+        next_param = ""
+
+    if request.method == "POST":
+        pin = (request.form.get("pin") or "").strip()
+        if pin and _PIN and pin == _PIN:
+            session.permanent = True
+            session["pin_authed"] = True
+            return redirect(_safe_next_url(next_param))
+        error = "Falscher PIN."
+
+    return render_template_string(_LOGIN_TEMPLATE, error=error, next_param=next_param)
+
 
 @app.route("/", methods=["GET"])
 def index():
@@ -914,13 +1029,13 @@ def api_bmk_search():
 
     query = (data.get("query") or "").strip()
     model = data.get("model") or None
-    limit = int(data.get("limit") or 10)
 
+    # ✅ limit wird bewusst ignoriert -> immer 1
     if not query:
         return jsonify({"ok": False, "error": "Bitte BMK-Code oder Begriff eingeben."}), 400
 
-    results = _bmk_search_all_models(query=query, model_hint=model, limit=limit)
-    return jsonify({"ok": True, "results": results, "lang_mode": "de-only-heuristic"})
+    results = _bmk_search_all_models(query=query, model_hint=model, limit=1)
+    return jsonify({"ok": True, "results": results, "lang_mode": "de-only-heuristic", "result_mode": "single"})
 
 @app.route("/api/feedback", methods=["POST"])
 def api_feedback():
@@ -942,6 +1057,40 @@ def api_feedback():
         out_path = logs_dir / "feedback.jsonl"
         with out_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+        # Telegram Notify (angereichert)
+        try:
+            ts = payload.get("timestamp") or ""
+            q = (payload.get("question") or "").strip()
+            note = (payload.get("note") or "").strip()
+
+            result = payload.get("result") or {}
+            meta = (result.get("metadata") or {}) if isinstance(result, dict) else {}
+
+            model = result.get("model") or meta.get("model") or "?"
+            source = result.get("source_type") or meta.get("source_type") or "?"
+
+            code = meta.get("code") or meta.get("error_code") or meta.get("bmk") or ""
+            lsb = meta.get("lsb_error_key") or meta.get("lsb_key") or meta.get("lsb_address") or meta.get("lsb_bmk_address") or ""
+
+            title = meta.get("title") or result.get("title") or ""
+            descr = meta.get("description_clean") or meta.get("sensor_description") or meta.get("description") or ""
+
+            msg = (
+                "?? Kran-Doc Fehler-Meldung\n"
+                f"Zeit: {ts}\n"
+                f"Modell: {model}\n"
+                f"Quelle: {source}\n"
+                f"Code: {code}\n"
+                f"LSB: {lsb}\n\n"
+                f"Treffer: {title}\n"
+                f"Beschreibung: {descr}\n\n"
+                f"Frage:\n{q}\n\n"
+                f"Meldung:\n{note}\n"
+            )
+            send_telegram(msg)
+        except Exception:
+            pass
     except Exception as e:
         return jsonify(ok=False, error=f"Fehler beim Schreiben des Feedback-Logs: {e}")
 

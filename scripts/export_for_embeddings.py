@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Iterator, Optional
+from typing import Any, Dict, List, Iterator
 
 # Basis-Pfade
 BASE_DIR = Path(__file__).resolve().parents[1]  # .../kran-tools
@@ -56,36 +56,6 @@ def new_chunk_id() -> str:
     return str(uuid.uuid4())
 
 
-_LATIN_CHAR_RE = re.compile(r"[A-Za-zÄÖÜäöüß]")
-_NON_LATIN_CHAR_RE = re.compile(r"[^\sA-Za-zÄÖÜäöüß0-9.,;:()\\-\"'/?+!%&§$€°]")
-
-
-def looks_foreign_language(text: str, max_non_latin_ratio: float = 0.2) -> bool:
-    """
-    Grober Filter: Verwerfe Texte, deren Buchstabenanteil zu hohem Teil nicht-lateinisch ist.
-    Wir nutzen einen konservativen Grenzwert, um deutsch/englisch zu behalten,
-    aber kyrillisch/arabisch/chinesisch zuverlässig rauszufiltern.
-    """
-    if not text:
-        return False
-
-    letters = [c for c in text if c.isalpha()]
-    if not letters:
-        return False
-
-    latin = sum(1 for c in letters if _LATIN_CHAR_RE.match(c))
-    non_latin = len(letters) - latin
-    if non_latin <= 0:
-        return False
-
-    ratio = non_latin / len(letters)
-    if ratio >= max_non_latin_ratio:
-        return True
-
-    # Wenn exotische Zeichen vorkommen, auch bei geringem Anteil skippen
-    return bool(_NON_LATIN_CHAR_RE.search(text))
-
-
 def write_chunk(
     out_file,
     model: str,
@@ -108,8 +78,6 @@ def write_chunk(
     """
     text = (text or "").strip()
     if not text:
-        return
-    if looks_foreign_language(text):
         return
 
     metadata: Dict[str, Any] = {"model": model, "source": source}
@@ -430,7 +398,7 @@ def export_bmk_links(data: Dict[str, Any], model: str, out_file) -> int:
         )
 
         lines = [
-            f"{code}",  # 1. Zeile = Fehlercode (hilft dem System)
+            f"{code}",  # 1. Zeile = Fehlercode
             f"BMK-Link: {bmk_summary}",
         ]
         if lsb_key:
@@ -484,6 +452,11 @@ def export() -> None:
     print(f"\n[RESULT] Gesamt-Chunks: {total_chunks}")
     print(f"[RESULT] JSONL geschrieben nach: {OUT_CHUNKS}")
     print("=== FERTIG ===")
+
+
+# Alias für alte Webapp-Imports
+def export_chunks_jsonl() -> None:
+    export()
 
 
 if __name__ == "__main__":

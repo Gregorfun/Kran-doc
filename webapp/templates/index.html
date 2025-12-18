@@ -8,7 +8,7 @@
 <body>
   <div class="page">
     <header class="page-header">
-      <h1>Kran-Doc. (Beta.V:1)</h1>
+      <h1>Kran-Doc. (Beta.V:1.1)</h1>
       <p>Dein Kran-Doktor: Fehlercodes prüfen, BMK-Infos sehen, Ort und Geber finden.</p>
     </header>
 
@@ -136,11 +136,6 @@
                 {% endif %}
               </select>
             </div>
-
-            <div class="field-group narrow">
-              <label for="bmk_limit" class="field-label">Max Treffer</label>
-              <input id="bmk_limit" name="bmk_limit" type="number" value="10" min="1" max="50">
-            </div>
           </div>
 
           <button type="submit" class="btn">BMK suchen</button>
@@ -167,6 +162,39 @@
       function setStatus(el, msg, type) {
         el.textContent = msg;
         el.className = 'search-status ' + (type || '');
+      }
+
+      function sendFeedback(question, resultObj) {
+        const note = prompt(
+          "Fehler melden (bitte kurz beschreiben):\n" +
+          "- Was ist falsch?\n" +
+          "- Was w?re richtig?\n" +
+          "- Optional: Foto/Quelle erw?hnen"
+        );
+
+        if (!note || !note.trim()) return;
+
+        fetch('{{ url_for("api_feedback") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: question || '',
+            result: resultObj || {},
+            note: note.trim()
+          })
+        })
+          .then(resp => resp.json())
+          .then(data => {
+            if (!data.ok) {
+              alert("Fehler beim Senden: " + (data.error || "Unbekannter Fehler"));
+              return;
+            }
+            alert("Danke! Meldung wurde gesendet ?");
+          })
+          .catch(err => {
+            console.error(err);
+            alert("Fehler beim Senden: " + err);
+          });
       }
 
       function cleanDisplayText(value) {
@@ -367,6 +395,29 @@
           card.appendChild(header);
           card.appendChild(metaBox);
           card.appendChild(textBox);
+
+          // --- Fehler melden Button ---
+          const feedbackBar = document.createElement('div');
+          feedbackBar.className = 'feedback-bar';
+
+          const feedbackBtn = document.createElement('button');
+          feedbackBtn.type = 'button';
+          feedbackBtn.className = 'btn danger small';
+          feedbackBtn.textContent = 'Fehler melden';
+
+          feedbackBtn.addEventListener('click', () => {
+            let currentQuestion = '';
+            const qEl = document.getElementById('question');
+            const bEl = document.getElementById('bmk_query');
+
+            if (qEl && qEl.value) currentQuestion = qEl.value;
+            if (!currentQuestion && bEl && bEl.value) currentQuestion = bEl.value;
+
+            sendFeedback(currentQuestion, r);
+          });
+
+          feedbackBar.appendChild(feedbackBtn);
+          card.appendChild(feedbackBar);
           resultsEl.appendChild(card);
         });
       }
@@ -432,7 +483,6 @@
           const q = document.getElementById('bmk_query').value.trim();
           const modelSelect = document.getElementById('bmk_model');
           const model = modelSelect ? modelSelect.value : '';
-          const limit = document.getElementById('bmk_limit').value || '10';
 
           if (!q) {
             setStatus(bmkStatus, 'Bitte BMK-Code oder Begriff eingeben.', 'error');
@@ -448,7 +498,7 @@
             body: JSON.stringify({
               query: q,
               model: model || null,
-              limit: parseInt(limit, 10)
+              limit: 1
             })
           })
             .then(resp => resp.json())

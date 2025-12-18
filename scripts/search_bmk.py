@@ -135,9 +135,8 @@ def search_bmk(query: str, model: Optional[str] = None) -> None:
         return
 
     print(f"[BMK-SUCHE] Suche nach '{query}'" + (f" im Modell {model}" if model else " in allen Modellen"))
+    print("[BMK-SUCHE] Modus: 1 Ergebnis (deterministisch)")
     print()
-
-    hit_count = 0
 
     for mdir in model_dirs:
         fk = find_full_knowledge_file(mdir)
@@ -154,15 +153,13 @@ def search_bmk(query: str, model: Optional[str] = None) -> None:
             if not bmk_matches(comp, query):
                 continue
 
-            hit_count += 1
             print("=" * 70)
             print(format_bmk_component(model_name, comp))
             print()
+            print("[BMK-SUCHE] Ergebnis: 1/1")
+            return
 
-    if hit_count == 0:
-        print("[BMK-SUCHE] Keine Treffer gefunden.")
-    else:
-        print(f"[BMK-SUCHE] Gesamt-Treffer: {hit_count}")
+    print("[BMK-SUCHE] Keine Treffer gefunden.")
 
 
 def main():

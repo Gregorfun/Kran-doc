@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 MODELS_DIR = BASE_DIR / "output" / "models"
@@ -46,21 +45,33 @@ def normalize_lsb_key(bus: Any, addr: Any) -> Optional[str]:
     except Exception:
         return None
 
+
 def parse_lsb_from_text(text: str) -> Optional[str]:
     """
-    Extrahiert LSB Key aus Text-Varianten:
+    Extrahiert 1 LSB Key aus Text-Varianten:
       - "LSB6-2"
       - "LSB 6 - 2"
       - "LSB B Adr. 24"  -> Bus=B=2 Adr=24
-      - "LSB B  Adr. 24"
+      - "LSB Adr. 2-24"
+      - "LSB Adr 2 24"
     """
     if not text:
         return None
 
     s = str(text)
 
-    # LSB6-2
+    # LSB6-2 / LSB 6 - 2
     m = re.search(r"LSB\s*([0-9]+)\s*[-_/ ]\s*([0-9]+)", s, re.IGNORECASE)
+    if m:
+        return normalize_lsb_key(m.group(1), m.group(2))
+
+    # LSB Adr. 2-24
+    m = re.search(r"LSB\s*Adr\.?\s*([0-9]+)\s*[-_/ ]\s*([0-9]+)", s, re.IGNORECASE)
+    if m:
+        return normalize_lsb_key(m.group(1), m.group(2))
+
+    # LSB Adr 2 24
+    m = re.search(r"LSB\s*Adr\.?\s*([0-9]+)\s+([0-9]+)", s, re.IGNORECASE)
     if m:
         return normalize_lsb_key(m.group(1), m.group(2))
 
@@ -73,6 +84,65 @@ def parse_lsb_from_text(text: str) -> Optional[str]:
             return normalize_lsb_key(bus, m.group(2))
 
     return None
+
+
+def extract_lsb_keys_from_text(text: Any) -> List[str]:
+    """
+    Extrahiert *mehrere* LSB-Keys aus Freitext (v.a. BMK description),
+    inkl. Ranges "2 24-30".
+    """
+    if text is None:
+        return []
+    s = str(text).replace("\r", "\n")
+
+    out: List[str] = []
+
+    # direkte Vorkommen (mehrfach möglich)
+    for m in re.finditer(r"LSB\s*([0-9]+)\s*[-_/ ]\s*([0-9]+)", s, re.IGNORECASE):
+        k = normalize_lsb_key(m.group(1), m.group(2))
+        if k:
+            out.append(k)
+
+    for m in re.finditer(r"LSB\s*Adr\.?\s*([0-9]+)\s*[-_/ ]\s*([0-9]+)", s, re.IGNORECASE):
+        k = normalize_lsb_key(m.group(1), m.group(2))
+        if k:
+            out.append(k)
+
+    for m in re.finditer(r"LSB\s*Adr\.?\s*([0-9]+)\s+([0-9]+)", s, re.IGNORECASE):
+        k = normalize_lsb_key(m.group(1), m.group(2))
+        if k:
+            out.append(k)
+
+    for m in re.finditer(r"LSB\s*([A-H])\s*(?:Teilnehmer\s*)?Adr\.?\s*([0-9]+)", s, re.IGNORECASE):
+        bus = LSB_BUS_LETTER_MAP.get(m.group(1).upper())
+        if bus:
+            k = normalize_lsb_key(bus, m.group(2))
+            if k:
+                out.append(k)
+
+    # Range: "2 24-30"
+    for m in re.finditer(r"\b([0-9]+)\s+([0-9]+)\s*[-–]\s*([0-9]+)\b", s):
+        try:
+            bus = int(m.group(1))
+            a1 = int(m.group(2))
+            a2 = int(m.group(3))
+            lo, hi = (a1, a2) if a1 <= a2 else (a2, a1)
+            for a in range(lo, hi + 1):
+                k = normalize_lsb_key(bus, a)
+                if k:
+                    out.append(k)
+        except Exception:
+            pass
+
+    # dedupe
+    seen = set()
+    uniq: List[str] = []
+    for k in out:
+        if k not in seen:
+            seen.add(k)
+            uniq.append(k)
+    return uniq
+
 
 def lsb_keys_from_bmk_lsb(raw: Any) -> List[str]:
     """
@@ -153,9 +223,10 @@ def _extract_components_from_bmk_doc(doc: Any) -> List[Dict[str, Any]]:
                 return [x for x in v if isinstance(x, dict)]
     return []
 
+
 def load_bmk_blocks(model_dir: Path, model: str) -> Dict[str, Dict[str, Any]]:
     """
-    Liefert Blocks in Form:
+    Liefert Blocks:
       {
         "oberwagen": {"components": [...]},
         "unterwagen": {"components": [...]}
@@ -170,7 +241,6 @@ def load_bmk_blocks(model_dir: Path, model: str) -> Dict[str, Dict[str, Any]]:
 
     blocks: Dict[str, Dict[str, Any]] = {}
 
-    # 1) bevorzugt OW/UW
     ow_comps = _extract_components_from_bmk_doc(ow)
     uw_comps = _extract_components_from_bmk_doc(uw)
     if ow_comps:
@@ -181,10 +251,7 @@ def load_bmk_blocks(model_dir: Path, model: str) -> Dict[str, Dict[str, Any]]:
     if blocks:
         return blocks
 
-    # 2) combined BMK.json
     comb_comps = _extract_components_from_bmk_doc(combined)
-
-    # Manche Combined-Dateien haben evtl. schon wagon-Feld pro Component
     if comb_comps:
         ow_list: List[Dict[str, Any]] = []
         uw_list: List[Dict[str, Any]] = []
@@ -199,7 +266,6 @@ def load_bmk_blocks(model_dir: Path, model: str) -> Dict[str, Dict[str, Any]]:
             else:
                 unk_list.append(c)
 
-        # Wenn keine wagons drin sind, pack alles in "oberwagen" als Default
         if not ow_list and not uw_list and unk_list:
             ow_list = unk_list
             unk_list = []
@@ -217,6 +283,10 @@ def load_bmk_blocks(model_dir: Path, model: str) -> Dict[str, Dict[str, Any]]:
 def build_bmk_lsb_index(blocks: Dict[str, Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     """
     Index: LSB-Key -> Liste von BMK-Kandidaten
+
+    Hinweis:
+    - Der Index kann mehrere Kandidaten pro LSB enthalten.
+    - Konsumenten (UI/Enrichment) nehmen ab jetzt deterministisch nur den ersten (=besten) Kandidaten.
     """
     idx: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -228,8 +298,14 @@ def build_bmk_lsb_index(blocks: Dict[str, Dict[str, Any]]) -> Dict[str, List[Dic
         for c in comps:
             if not isinstance(c, dict):
                 continue
+
             raw_lsb = c.get("lsb_address") or c.get("lsb") or c.get("lsb_key")
             keys = lsb_keys_from_bmk_lsb(raw_lsb)
+
+            # FALLBACK: LSB aus description/Text
+            if not keys:
+                keys = extract_lsb_keys_from_text(c.get("description") or "")
+
             if not keys:
                 continue
 
@@ -289,15 +365,23 @@ def merge_model(model: str) -> None:
     # Handbücher (optional, aktuell 0 – bleibt so, bis manual-parser existiert)
     handbook_samples: List[Dict[str, Any]] = []
 
-    # LEC -> BMK Links
+    # LEC -> BMK Links (NEU: nur 1 BMK Link)
     lec_with_bmk = 0
     for e in lec_errors:
-        code = (e.get("error_code") or e.get("code") or "").strip()
-        short = e.get("short_text") or ""
-        longt = e.get("long_text") or ""
-        raw_lsb = e.get("lsb_address") or e.get("lsb") or ""
+        # Wichtig: erst vorhandenes lsb_key nutzen (bei dir vorhanden!)
+        lsb_key = (e.get("lsb_key") or "").strip()
+        if not lsb_key:
+            short = e.get("short_text") or ""
+            longt = e.get("long_text") or ""
+            raw_lsb = e.get("lsb_address") or e.get("lsb") or ""
 
-        lsb_key = parse_lsb_from_text(str(raw_lsb)) or parse_lsb_from_text(short) or parse_lsb_from_text(longt)
+            lsb_key = (
+                parse_lsb_from_text(str(raw_lsb))
+                or parse_lsb_from_text(str(short))
+                or parse_lsb_from_text(str(longt))
+                or ""
+            )
+
         if not lsb_key:
             continue
 
@@ -306,10 +390,23 @@ def merge_model(model: str) -> None:
             continue
 
         lec_with_bmk += 1
+
+        # deterministisch: "best" = erster Treffer
         best = hits[0]
-        e["bmk_links"] = len(hits)
-        e["bmk_summary"] = summarize_bmk(best)
+
+        # Kompatibel + besser:
         e["lsb_error_key"] = lsb_key
+
+        # NEU: nur 1 Treffer (statt Liste)
+        e["bmk_link"] = best
+
+        # Optional: Count behalten (für Stats/Debug)
+        e["bmk_links_count"] = len(hits)
+
+        # Kompakte Anzeige
+        e["bmk_summary"] = summarize_bmk(best)
+
+        # ALT (entfernt): e["bmk_links"] = hits
 
     # FULL_KNOWLEDGE
     full_legacy = {
@@ -329,9 +426,7 @@ def merge_model(model: str) -> None:
 
     full_gpt51 = {
         "model": model,
-        "meta": {
-            "format": "GPT51_FULL_KNOWLEDGE",
-        },
+        "meta": {"format": "GPT51_FULL_KNOWLEDGE"},
         **full_legacy,
     }
 
