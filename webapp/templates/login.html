@@ -9,7 +9,7 @@
   <div class="page">
     <header class="page-header">
       <h1>Kran-Doc Login</h1>
-      <p>Bitte PIN eingeben. Zugriff gilt 24h.</p>
+      <p>Bitte PIN eingeben.</p>
     </header>
     <main class="page-main">
       <section class="card section">
@@ -19,10 +19,16 @@
         <form method="post" action="{{ url_for('login', next=next_param) }}">
           <label for="pin" class="field-label">PIN</label>
           <input id="pin" name="pin" type="password" autocomplete="current-password">
-          <button type="submit" class="btn primary">Login</button>
+          <div class="actions-grid">
+            <button type="submit" class="btn primary">Login</button>
+            <button type="button" id="contact-open" class="btn">Kontakt</button>
+          </div>
         </form>
       </section>
     </main>
   </div>
+
+  {% include "_contact_modal.html" %}
+  <script src="{{ url_for('static', filename='contact.js') }}"></script>
 </body>
 </html>

@@ -69,7 +69,7 @@
               <div class="field-group">
                 <label for="model" class="field-label">Modell</label>
                 <select id="model" name="model">
-                  <option value="">Alle Modelle</option>
+                  <option value="" disabled selected>Bitte Modell wählen</option>
                   {% if ss.model_names is defined and ss.model_names %}
                     {% for m in ss.model_names %}
                       <option value="{{ m }}">{{ m }}</option>
@@ -126,7 +126,7 @@
             <div class="field-group">
               <label for="bmk_model" class="field-label">Modell</label>
               <select id="bmk_model" name="bmk_model">
-                <option value="">Alle Modelle</option>
+                <option value="" disabled selected>Bitte Modell wählen</option>
                 {% if ss.model_names is defined and ss.model_names %}
                   {% for m in ss.model_names %}
                     <option value="{{ m }}">{{ m }}</option>
@@ -145,15 +145,14 @@
         <div id="bmk-results" class="search-results"></div>
       </section>
 
-      <!-- Letzte Aktualisierung -->
-      <section class="card section">
-        <h2>Letzte Aktualisierung</h2>
-        {% if ss.latest_report %}
-          <p>Letzte Aktualisierung: <code>{{ ss.latest_report }}</code></p>
-        {% else %}
-          <p>Noch keine Aktualisierung durchgeführt.</p>
-        {% endif %}
-      </section>
+      <!-- Footer Kontakt -->
+      <footer class="page-footer">
+        <div class="footer-contact">
+          <button id="contact-open" class="btn">Kontakt</button>
+        </div>
+      </footer>
+
+      {% include "_contact_modal.html" %}
     </main>
   </div>
 
@@ -162,6 +161,16 @@
       function setStatus(el, msg, type) {
         el.textContent = msg;
         el.className = 'search-status ' + (type || '');
+      }
+
+      function markModelRequired(el) {
+        if (!el) return;
+        el.classList.remove('attention-error', 'shake');
+        void el.offsetWidth;
+        el.classList.add('attention-error', 'shake');
+        setTimeout(() => {
+          el.classList.remove('attention-error', 'shake');
+        }, 700);
       }
 
       function sendFeedback(question, resultObj) {
@@ -437,6 +446,12 @@
           const sourceType = document.getElementById('source_type').value;
           const topK = document.getElementById('top_k').value || '5';
 
+          if (!model) {
+            setStatus(statusEl, 'Bitte ein Modell auswählen.', 'error');
+            markModelRequired(modelSelect);
+            return;
+          }
+
           if (!question) {
             setStatus(statusEl, 'Bitte zuerst eine Frage eingeben.', 'error');
             return;
@@ -484,6 +499,12 @@
           const modelSelect = document.getElementById('bmk_model');
           const model = modelSelect ? modelSelect.value : '';
 
+          if (!model) {
+            setStatus(bmkStatus, 'Bitte ein Modell auswählen.', 'error');
+            markModelRequired(modelSelect);
+            return;
+          }
+
           if (!q) {
             setStatus(bmkStatus, 'Bitte BMK-Code oder Begriff eingeben.', 'error');
             return;
@@ -516,7 +537,9 @@
             });
         });
       }
+
     })();
   </script>
+  <script src="{{ url_for('static', filename='contact.js') }}"></script>
 </body>
 </html>

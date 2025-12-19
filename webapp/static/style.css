@@ -213,6 +213,24 @@ select:focus {
   box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.7);
 }
 
+.attention-error {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.75) !important;
+}
+
+.attention-error.shake {
+  animation: shake 0.7s ease;
+}
+
+@keyframes shake {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+
 .search-row {
   display: grid;
   grid-template-columns: 2fr 2fr 1fr;
@@ -344,6 +362,89 @@ select:focus {
   gap: 2px;
 }
 
+/* Footer Kontakt */
+
+.page-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.footer-contact {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Modal */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.modal.is-open {
+  display: flex;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 6, 18, 0.75);
+  backdrop-filter: blur(2px);
+}
+
+.modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(480px, 100%);
+  background: #0b1020;
+  border: 1px solid rgba(120, 144, 180, 0.45);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.55);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-close {
+  border: 1px solid rgba(120, 144, 180, 0.6);
+  background: transparent;
+  color: #cbd5f5;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 /* Report-Seite (optional) */
 
 .report-content {
@@ -361,6 +462,11 @@ select:focus {
 
   .search-row {
     grid-template-columns: 1fr;
+  }
+
+  .page-footer,
+  .footer-contact {
+    justify-content: center;
   }
 }
 .feedback-bar{

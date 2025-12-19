@@ -896,44 +896,13 @@ def compute_system_status() -> Dict[str, Any]:
 # Web-Routen
 # ============================================================
 
-_LOGIN_TEMPLATE = """<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8">
-  <title>Kran-Doc Login</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-  <div class="page">
-    <header class="page-header">
-      <h1>Kran-Doc Login</h1>
-      <p>Bitte PIN eingeben.</p>
-    </header>
-    <main class="page-main">
-      <section class="card section">
-        {% if error %}
-          <p class="status-warn">{{ error }}</p>
-        {% endif %}
-        <form method="post" action="{{ url_for('login', next=next_param) }}">
-          <label for="pin" class="field-label">PIN</label>
-          <input id="pin" name="pin" type="password" autocomplete="current-password">
-          <button type="submit" class="btn primary">Login</button>
-        </form>
-      </section>
-    </main>
-  </div>
-</body>
-</html>
-"""
-
-
 @app.before_request
 def require_pin_login():
     if not _pin_login_required():
         return None
 
     path = request.path or ""
-    if path == "/login" or path.startswith("/static/"):
+    if path in ("/login", "/contact") or path.startswith("/static/"):
         return None
     if _is_authenticated():
         return None
@@ -962,7 +931,7 @@ def login():
             return redirect(_safe_next_url(next_param))
         error = "Falscher PIN."
 
-    return render_template_string(_LOGIN_TEMPLATE, error=error, next_param=next_param)
+    return render_template("login.html", error=error, next_param=next_param)
 
 
 @app.route("/", methods=["GET"])
@@ -1019,6 +988,8 @@ def api_search():
 
     if not question:
         return jsonify({"ok": False, "error": "Bitte eine Frage eingeben."}), 400
+    if not model:
+        return jsonify({"ok": False, "error": "Bitte ein Modell auswählen"}), 400
 
     # ✅ Fehlercode-Direktmodus
     requested_codes = _extract_error_codes(question)
@@ -1051,6 +1022,8 @@ def api_bmk_search():
     # ✅ limit wird bewusst ignoriert -> immer 1
     if not query:
         return jsonify({"ok": False, "error": "Bitte BMK-Code oder Begriff eingeben."}), 400
+    if not model:
+        return jsonify({"ok": False, "error": "Bitte ein Modell auswählen"}), 400
 
     results = _bmk_search_all_models(query=query, model_hint=model, limit=1)
     return jsonify({"ok": True, "results": results, "lang_mode": "de-only-heuristic", "result_mode": "single"})
@@ -1111,6 +1084,32 @@ def api_feedback():
             pass
     except Exception as e:
         return jsonify(ok=False, error=f"Fehler beim Schreiben des Feedback-Logs: {e}")
+
+    return jsonify(ok=True)
+
+@app.route("/contact", methods=["POST"])
+def contact():
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        return jsonify(ok=False, error="Invalid JSON"), 400
+
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip()
+    message = (data.get("message") or "").strip()
+
+    if not message:
+        return jsonify(ok=False, error="Nachricht ist erforderlich."), 400
+    if len(message) > 1500:
+        return jsonify(ok=False, error="Nachricht ist zu lang (max 1500 Zeichen)."), 400
+
+    safe_name = name or "Unbekannt"
+    safe_email = email or "-"
+    payload = f"[Kran-Doc Kontakt] Name: {safe_name} | Email: {safe_email} | Message: {message}"
+
+    ok = send_telegram(payload)
+    if not ok:
+        return jsonify(ok=False, error="Senden fehlgeschlagen."), 500
 
     return jsonify(ok=True)
 
