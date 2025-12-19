@@ -61,6 +61,11 @@ body {
   font-size: 1.2rem;
 }
 
+.login-card {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
 /* Systemstatus */
 
 .status-grid {
@@ -365,7 +370,9 @@ select:focus {
 /* Footer Kontakt */
 
 .page-footer {
-  margin-top: 10px;
+  margin: 0;
+  padding: 0;
+  height: 0;
   display: flex;
   justify-content: flex-end;
 }
@@ -374,6 +381,15 @@ select:focus {
   width: 100%;
   display: flex;
   justify-content: flex-end;
+}
+
+button#contact-open.contact-fab {
+  position: fixed !important;
+  left: 50% !important;
+  bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  transform: translateX(-50%) !important;
+  z-index: 9999 !important;
+  min-height: 44px;
 }
 
 /* Modal */
@@ -385,7 +401,7 @@ select:focus {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  z-index: 50;
+  z-index: 10000;
 }
 
 .modal.is-open {
@@ -455,9 +471,13 @@ select:focus {
 
 /* Responsiv */
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .page {
-    padding: 16px 10px 32px;
+    padding: 14px 12px 90px;
+  }
+
+  .page-main {
+    padding-bottom: 90px;
   }
 
   .search-row {
@@ -467,6 +487,57 @@ select:focus {
   .page-footer,
   .footer-contact {
     justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .page-header p {
+    font-size: 0.9rem;
+  }
+
+  .card {
+    padding: 14px 14px 16px;
+  }
+
+  .search-form {
+    gap: 10px;
+  }
+
+  .search-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .actions-grid {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  textarea,
+  input[type="text"],
+  input[type="number"],
+  input[type="password"],
+  input[type="email"],
+  select,
+  .btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .contact-fab {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .search-row {
+    grid-template-columns: 1fr 1fr;
   }
 }
 .feedback-bar{
@@ -487,5 +558,27 @@ select:focus {
 }
 .btn.danger:hover{
   background: rgba(255, 80, 80, 0.25);
+}
+
+/* --- Kontakt Floating Button: bleibt am Viewport, scrollt nicht mit --- */
+body > button#contact-open.contact-fab,
+button#contact-open.contact-fab {
+  position: fixed !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  z-index: 99999 !important;
+  min-height: 44px;
+}
+
+/* Optional: etwas kompakter auf Mobile */
+@media (max-width: 768px) {
+  body > button#contact-open.contact-fab,
+  button#contact-open.contact-fab {
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+  }
+  .page, .page-main {
+    padding-bottom: 96px;
+  }
 }
 

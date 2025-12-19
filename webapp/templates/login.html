@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kran-Doc Login</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -12,7 +13,7 @@
       <p>Bitte PIN eingeben.</p>
     </header>
     <main class="page-main">
-      <section class="card section">
+      <section class="card section login-card">
         {% if error %}
           <p class="status-warn">{{ error }}</p>
         {% endif %}
@@ -21,13 +22,13 @@
           <input id="pin" name="pin" type="password" autocomplete="current-password">
           <div class="actions-grid">
             <button type="submit" class="btn primary">Login</button>
-            <button type="button" id="contact-open" class="btn">Kontakt</button>
           </div>
         </form>
       </section>
     </main>
   </div>
 
+  <button id="contact-open" class="btn contact-fab" type="button">Kontakt</button>
   {% include "_contact_modal.html" %}
   <script src="{{ url_for('static', filename='contact.js') }}"></script>
 </body>

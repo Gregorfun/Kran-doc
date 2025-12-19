@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PDFDoc / Kran-Doc – Startseite</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -144,13 +145,6 @@
         <div id="bmk-status" class="search-status"></div>
         <div id="bmk-results" class="search-results"></div>
       </section>
-
-      <!-- Footer Kontakt -->
-      <footer class="page-footer">
-        <div class="footer-contact">
-          <button id="contact-open" class="btn">Kontakt</button>
-        </div>
-      </footer>
 
       {% include "_contact_modal.html" %}
     </main>
@@ -541,5 +535,6 @@
     })();
   </script>
   <script src="{{ url_for('static', filename='contact.js') }}"></script>
+  <button id="contact-open" class="btn contact-fab" type="button">Kontakt</button>
 </body>
 </html>
