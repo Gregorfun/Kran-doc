@@ -105,17 +105,34 @@ def _load_app_config() -> AppConfig:
 CONFIG = _load_app_config()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("KRANDOC_SECRET") or "kran-doc-secret-key"
+app.secret_key = os.environ.get("SECRET_KEY") or os.environ.get("KRANDOC_SECRET") or "kran-doc-secret-key"
 app.permanent_session_lifetime = timedelta(hours=24)
-_PIN = os.environ.get("KRANDOC_PIN")
+_PIN = os.environ.get("PIN_CODE") or os.environ.get("KRANDOC_PIN")
 
 
 def _pin_login_required() -> bool:
     return bool(_PIN)
 
 
+def _parse_pin_ok_until(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        cleaned = value.strip()
+        if cleaned.endswith("Z"):
+            cleaned = cleaned[:-1]
+        return datetime.fromisoformat(cleaned)
+    except ValueError:
+        return None
+
+
 def _is_authenticated() -> bool:
-    return bool(session.get("pin_authed"))
+    if not session.get("pin_authed"):
+        return False
+    ok_until = _parse_pin_ok_until(session.get("pin_ok_until"))
+    if not ok_until:
+        return False
+    return datetime.utcnow() < ok_until
 
 
 def _safe_next_url(value: Optional[str]) -> str:
@@ -940,6 +957,8 @@ def login():
         if pin and _PIN and pin == _PIN:
             session.permanent = True
             session["pin_authed"] = True
+            ok_until = datetime.utcnow() + timedelta(hours=24)
+            session["pin_ok_until"] = ok_until.replace(microsecond=0).isoformat() + "Z"
             return redirect(_safe_next_url(next_param))
         error = "Falscher PIN."
 
