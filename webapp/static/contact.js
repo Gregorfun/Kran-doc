@@ -1,12 +1,16 @@
 (function() {
   function initContactModal() {
     var modal = document.getElementById('contact-modal');
-    var openBtn = document.getElementById('contact-open');
+    var openBtns = [];
+    var defaultBtn = document.getElementById('contact-open');
+    var footerBtn = document.getElementById('contact-footer-open');
+    if (defaultBtn) openBtns.push(defaultBtn);
+    if (footerBtn) openBtns.push(footerBtn);
     var form = document.getElementById('contact-form');
     var statusEl = document.getElementById('contact-status');
     var msgInput = document.getElementById('contact-message');
 
-    if (!modal || !openBtn || !form) {
+    if (!modal || openBtns.length === 0 || !form) {
       return;
     }
 
@@ -28,7 +32,9 @@
       modal.setAttribute('aria-hidden', 'true');
     }
 
-    openBtn.addEventListener('click', openModal);
+    openBtns.forEach(function(btn) {
+      btn.addEventListener('click', openModal);
+    });
 
     modal.addEventListener('click', function(ev) {
       if (ev.target && ev.target.getAttribute('data-close') === '1') {

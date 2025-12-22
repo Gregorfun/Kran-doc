@@ -150,11 +150,27 @@
     </main>
   </div>
 
+  <div class="contact-footerbar" role="contentinfo">
+    <button id="contact-footer-open" class="btn contact-footer-btn" type="button">Kontakt</button>
+  </div>
+
   <script>
     (function() {
       function setStatus(el, msg, type) {
         el.textContent = msg;
         el.className = 'search-status ' + (type || '');
+      }
+
+      function updateResultsState() {
+        var searchResults = document.getElementById('search-results');
+        var bmkResults = document.getElementById('bmk-results');
+        var hasSearch = searchResults && searchResults.textContent.trim().length > 0;
+        var hasBmk = bmkResults && bmkResults.textContent.trim().length > 0;
+        if (hasSearch || hasBmk) {
+          document.body.classList.add('has-results');
+        } else {
+          document.body.classList.remove('has-results');
+        }
       }
 
       function markModelRequired(el) {
@@ -293,6 +309,7 @@
         resultsEl.innerHTML = '';
         if (!results || !results.length) {
           resultsEl.textContent = 'Keine Treffer gefunden.';
+          updateResultsState();
           return;
         }
 
@@ -423,6 +440,7 @@
           card.appendChild(feedbackBar);
           resultsEl.appendChild(card);
         });
+        updateResultsState();
       }
 
       // Suche (Semantik)
@@ -453,6 +471,7 @@
 
           setStatus(statusEl, 'Suche läuft ...', 'pending');
           resultsEl.innerHTML = '';
+          updateResultsState();
 
           fetch('{{ url_for("api_search") }}', {
             method: 'POST',
@@ -506,6 +525,7 @@
 
           setStatus(bmkStatus, 'BMK-Suche läuft ...', 'pending');
           bmkResults.innerHTML = '';
+          updateResultsState();
 
           fetch('{{ url_for("api_bmk_search") }}', {
             method: 'POST',
@@ -535,6 +555,5 @@
     })();
   </script>
   <script src="{{ url_for('static', filename='contact.js') }}"></script>
-  <button id="contact-open" class="btn contact-fab" type="button">Kontakt</button>
 </body>
 </html>

@@ -22,13 +22,13 @@
           <input id="pin" name="pin" type="password" autocomplete="current-password">
           <div class="actions-grid">
             <button type="submit" class="btn primary">Login</button>
+            <button id="contact-open" class="btn contact-inline" type="button">Kontakt</button>
           </div>
         </form>
       </section>
     </main>
   </div>
 
-  <button id="contact-open" class="btn contact-fab" type="button">Kontakt</button>
   {% include "_contact_modal.html" %}
   <script src="{{ url_for('static', filename='contact.js') }}"></script>
 </body>

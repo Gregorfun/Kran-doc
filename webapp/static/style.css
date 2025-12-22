@@ -383,13 +383,8 @@ select:focus {
   justify-content: flex-end;
 }
 
-button#contact-open.contact-fab {
-  position: fixed !important;
-  left: 50% !important;
-  bottom: calc(16px + env(safe-area-inset-bottom)) !important;
-  transform: translateX(-50%) !important;
-  z-index: 9999 !important;
-  min-height: 44px;
+.contact-inline {
+  position: static;
 }
 
 /* Modal */
@@ -529,10 +524,6 @@ button#contact-open.contact-fab {
     font-size: 16px;
   }
 
-  .contact-fab {
-    padding: 6px 10px;
-    font-size: 0.85rem;
-  }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
@@ -560,25 +551,51 @@ button#contact-open.contact-fab {
   background: rgba(255, 80, 80, 0.25);
 }
 
-/* --- Kontakt Floating Button: bleibt am Viewport, scrollt nicht mit --- */
-body > button#contact-open.contact-fab,
-button#contact-open.contact-fab {
-  position: fixed !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  bottom: calc(16px + env(safe-area-inset-bottom)) !important;
-  z-index: 99999 !important;
-  min-height: 44px;
+/* --- Sticky Footer Kontakt-Leiste (stabil, kein Sliding) --- */
+.contact-footerbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
 }
 
-/* Optional: etwas kompakter auf Mobile */
+.contact-footer-btn {
+  min-height: 44px;
+  width: min(520px, 100%);
+  transition: none !important;
+}
+
 @media (max-width: 768px) {
-  body > button#contact-open.contact-fab,
-  button#contact-open.contact-fab {
-    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+  .page, .page-main { padding-bottom: 96px; }
+}
+
+.page, .page-main {
+  padding-bottom: 96px;
+}
+
+body.has-results .page,
+body.has-results .page-main {
+  padding-bottom: 180px;
+}
+
+@media (min-width: 1024px) {
+  .contact-footerbar {
+    justify-content: flex-start;
+    padding-left: 24px;
   }
-  .page, .page-main {
-    padding-bottom: 96px;
+
+  .contact-footer-btn {
+    width: auto;
+    min-width: 180px;
+    max-width: 260px;
+    padding: 6px 16px;
+    font-size: 0.82rem;
   }
 }
 
