@@ -357,6 +357,65 @@ def _load_json(path: str) -> Any:
     with p.open("r", encoding="utf-8") as f:
         return json.load(f)
 
+_EXPLAIN_CACHE = {}
+
+def _explain_paths_for_model(model: Optional[str]) -> List[Path]:
+    paths: List[Path] = []
+    if model:
+        paths.append(BASE_DIR / "output" / "models" / model / "explain_catalog.json")
+    paths.append(BASE_DIR / "output" / "explain_catalog_all.json")
+    return paths
+
+def _load_explain_catalog(model: Optional[str]) -> Dict[str, Any]:
+    key = model or "__all__"
+    if key in _EXPLAIN_CACHE:
+        return _EXPLAIN_CACHE[key]
+    for p in _explain_paths_for_model(model):
+        try:
+            if p.exists():
+                with p.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    _EXPLAIN_CACHE[key] = data
+                    return data
+        except Exception:
+            continue
+    _EXPLAIN_CACHE[key] = {}
+    return {}
+
+def _extract_error_code_from_result(r: Dict[str, Any]) -> Optional[str]:
+    meta = r.get("metadata") or {}
+    candidates = [
+        meta.get("error_code"),
+        meta.get("code"),
+        meta.get("bmk"),
+        meta.get("id"),
+        r.get("error_code"),
+        r.get("code"),
+        r.get("bmk"),
+    ]
+    for c in candidates:
+        if not c:
+            continue
+        s = str(c).strip().upper()
+        if 4 <= len(s) <= 8 and all(ch in "0123456789ABCDEF" for ch in s):
+            return s
+    return None
+
+def _attach_explain(results: List[Any], model: Optional[str]) -> List[Any]:
+    catalog = _load_explain_catalog(model)
+    if not catalog:
+        return results
+    for r in results or []:
+        try:
+            if isinstance(r, dict) and "explain" not in r:
+                code = _extract_error_code_from_result(r)
+                if code and code in catalog:
+                    r["explain"] = catalog[code]
+        except Exception:
+            continue
+    return results
+
 @lru_cache(maxsize=64)
 def _load_full_knowledge_model(model: str) -> Dict[str, Any]:
     mdir = _model_dir(model)
@@ -411,6 +470,19 @@ def _load_lec_index_for_model(model: str) -> Dict[str, Dict[str, Any]]:
             continue
         idx[code.upper()] = e
     return idx
+
+
+@lru_cache(maxsize=64)
+def _load_ersatzteile_for_model(model: str) -> Optional[Dict[str, Any]]:
+    mdir = _model_dir(model)
+    p = mdir / "ersatzteile.json"
+    if not p.exists():
+        return None
+    try:
+        data = _load_json(str(p))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
 
 
 def _collect_bmk_components_for_model(model: str) -> List[Dict[str, Any]]:
@@ -996,6 +1068,7 @@ def api_search():
     if _is_pure_code_query(question, requested_codes, source_type):
         results = _direct_lec_results_for_codes(requested_codes, model_hint=model, top_k=1)
         results = _enrich_results_with_bmk(results, model_hint=model)
+        results = _attach_explain(results, model)
         return jsonify({"ok": True, "results": results})
 
     # ✅ Normale Embedding-Suche + Enrichment
@@ -1007,6 +1080,7 @@ def api_search():
         return jsonify({"ok": False, "error": f"Fehler bei der Embedding-Suche: {e}"}), 500
 
     results = _enrich_results_with_bmk(results, model_hint=model)
+    results = _attach_explain(results, model)
     return jsonify({"ok": True, "results": results})
 
 @app.route("/api/bmk_search", methods=["POST"])
@@ -1027,6 +1101,101 @@ def api_bmk_search():
 
     results = _bmk_search_all_models(query=query, model_hint=model, limit=1)
     return jsonify({"ok": True, "results": results, "lang_mode": "de-only-heuristic", "result_mode": "single"})
+
+@app.route("/api/ersatzteile/search", methods=["POST"])
+def api_ersatzteile_search():
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid JSON"}), 400
+
+    model = data.get("model") or None
+    query = (data.get("query") or "").strip()
+    try:
+        limit = int(data.get("limit") or 10)
+    except Exception:
+        limit = 10
+
+    if not model:
+        return jsonify({"ok": False, "error": "Bitte ein Modell auswÇÏhlen"}), 400
+    if not query:
+        return jsonify({"ok": False, "error": "Bitte Suchbegriff eingeben."}), 400
+
+    limit = max(1, min(limit, 200))
+
+    data = _load_ersatzteile_for_model(model)
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Ersatzteile fÇ¬r dieses Modell vorhanden"})
+
+    q = query.lower()
+
+    def _matches(value: Any) -> bool:
+        if value is None:
+            return False
+        return q in str(value).lower()
+
+    results: List[Dict[str, Any]] = []
+    remaining = limit  # limit bezieht sich auf die Anzahl der Teilepositionen (parts)
+    for a in data.get("assemblies") or []:
+        if remaining <= 0:
+            break
+        if not isinstance(a, dict):
+            continue
+
+        assembly_match = any(
+            _matches(a.get(k))
+            for k in ("name_de", "name_en", "assembly_article")
+        )
+
+        selected_parts: List[Dict[str, Any]] = []
+        for p in a.get("parts") or []:
+            if remaining <= 0:
+                break
+            if not isinstance(p, dict):
+                continue
+            part_match = assembly_match or any(
+                _matches(p.get(k))
+                for k in (
+                    "article_no", "article",
+                    "name_de", "name_en",
+                    "designation_de", "designation_en",
+                    "bezeichnung_de", "description_en",
+                    "bezeichnung", "text",
+                    "pos",
+                )
+            )
+            if not part_match:
+                continue
+            article_no = p.get("article_no") or p.get("article")
+            name_de = p.get("name_de") or p.get("designation_de") or p.get("bezeichnung_de") or p.get("bezeichnung") or p.get("text")
+            name_en = p.get("name_en") or p.get("designation_en") or p.get("description_en")
+            selected_parts.append(
+                {
+                    "pos": p.get("pos"),
+                    "article_no": article_no,
+                    "qty": p.get("qty"),
+                    "name_de": name_de,
+                    "name_en": name_en,
+                    "model": model,
+                    "source_type": "etk_part",
+                }
+            )
+            remaining -= 1
+
+        if not selected_parts:
+            continue
+
+        results.append(
+            {
+                "assembly_article": a.get("assembly_article"),
+                "name_de": a.get("name_de"),
+                "name_en": a.get("name_en"),
+                "ref_page": a.get("ref_page"),
+                "parts": selected_parts,
+            }
+        )
+
+    return jsonify({"ok": True, "results": results})
 
 @app.route("/api/feedback", methods=["POST"])
 def api_feedback():

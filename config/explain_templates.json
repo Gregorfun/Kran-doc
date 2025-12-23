@@ -1,0 +1,148 @@
+{
+  "DPF_ASCHE": {
+    "title": "DPF: Aschebeladung über Warnschwelle",
+    "severity": "warn",
+    "operable": true,
+    "summary": "Der Dieselpartikelfilter (DPF) ist mit Asche über der Warnschwelle beladen.",
+    "meaning": "Ruß wird bei der Regeneration verbrannt – Asche nicht. Die Asche bleibt im Filter und reduziert die freie Filterkapazität dauerhaft.",
+    "effects": "Meist ist der Kran zunächst noch betriebsfähig. Wenn es ignoriert wird, können Regenerationen häufiger werden und später Leistungsreduzierung/Notlauf auftreten.",
+    "causes": [
+      "Normale Alterung: viele Betriebsstunden seit letzter DPF-Reinigung/Wechsel",
+      "Viele Regenerationen (mehr Ascheeintrag über die Zeit)",
+      "Ölspezifikation/Aschegehalt ungünstig oder falsches Öl"
+    ],
+    "next_steps": [
+      "Service einplanen: DPF reinigen oder ersetzen (nach Herstellervorgabe)",
+      "Betriebsstunden & Historie prüfen (letzte DPF-Reinigung/Wechsel)",
+      "Ölspezifikation prüfen (Freigabe / Ascheanteil)"
+    ],
+    "notes": "Aschebeladung lässt sich nicht „freiregenerieren“. Reinigung/Wechsel ist die nachhaltige Lösung."
+  },
+  "DPF_RUSS": {
+    "title": "DPF: Rußbeladung / Regeneration",
+    "severity": "info",
+    "operable": true,
+    "summary": "Der DPF meldet Rußbeladung bzw. ein Problem bei der Regeneration.",
+    "meaning": "Ruß kann grundsätzlich durch Regeneration verbrannt werden. Wenn Regenerationen nicht erfolgreich sind, steigt die Rußlast weiter an.",
+    "effects": "Bei hoher Rußbeladung sind Leistungseinbußen/Notlauf möglich. Häufige oder abgebrochene Regenerationen deuten auf Betriebsprofil oder Sensorik hin.",
+    "causes": [
+      "Viele Kurzstrecken/Leerlauf → Regeneration wird nicht zu Ende gefahren",
+      "Abgastemperatur-Sensoren/DPF-Drucksensor liefern falsche Werte",
+      "Undichtigkeiten/Abgasstrecke"
+    ],
+    "next_steps": [
+      "Regenerationsbedingungen prüfen (Temperatur, Drehzahl, Last)",
+      "Sensorwerte prüfen (DPF-Druck, Abgastemperatur)",
+      "Bei Bedarf Service-Regeneration oder Werkstattdiagnose"
+    ]
+  },
+  "BUS_COMM": {
+    "title": "CAN/LSB: Kommunikation gestört",
+    "severity": "warn",
+    "operable": true,
+    "summary": "Es liegt eine Störung in der Kommunikation (CAN/LSB/Datenbus) vor.",
+    "meaning": "Steuergeräte/Teilnehmer tauschen zyklisch Daten aus. Wenn Telegramme fehlen, reagieren Funktionen verzögert oder fallen aus.",
+    "effects": "Kann sporadisch sein (Wackler) oder dauerhaft (Teilnehmer offline). Je nach System können Warnungen bis Funktionsausfall auftreten.",
+    "causes": [
+      "Steckverbindung/Kontaktproblem, Feuchtigkeit, Korrosion",
+      "Leitung/Abschirmung beschädigt",
+      "Teilnehmer/Steuergerät hat Spannungsausfall oder Defekt"
+    ],
+    "next_steps": [
+      "Fehlerhäufigkeit prüfen (sporadisch vs. dauerhaft)",
+      "Stecker/Leitungen/Abschirmung prüfen (Zug, Scheuerstellen, Feuchte)",
+      "Versorgungsspannung des betroffenen Teilnehmers prüfen"
+    ]
+  },
+  "SENSOR_SIGNAL": {
+    "title": "Geber/Sensor: Signal unplausibel",
+    "severity": "warn",
+    "operable": true,
+    "summary": "Ein Sensor/Geber liefert ein unplausibles oder fehlerhaftes Signal.",
+    "meaning": "Das Steuergerät erkennt Werte außerhalb des erwarteten Bereichs (z.B. Unterbrechung/Kurzschluss/Signal springt).",
+    "effects": "Je nach Funktion kann es zu falschen Anzeigen, Einschränkungen oder Sicherheitsabschaltungen kommen.",
+    "causes": [
+      "Stecker/Kabel beschädigt oder Kontaktproblem",
+      "Sensor defekt oder Verschmutzung/Mechanikproblem",
+      "Versorgung/Referenzspannung fehlt"
+    ],
+    "next_steps": [
+      "Stecker & Leitung prüfen (Wackeltest, Sichtprüfung, Durchgang)",
+      "Versorgung/Signal messen (nach Schaltplan)",
+      "Sensor ggf. tauschen/kalibrieren"
+    ]
+  },
+  "HYDRAULIK_DRUCK": {
+    "title": "Hydraulik: Druckabweichung",
+    "severity": "warn",
+    "operable": true,
+    "summary": "Hydraulikdruck ist zu hoch/zu niedrig oder außerhalb der erwarteten Regelung.",
+    "meaning": "Der Drucksensor bzw. die Regelung meldet eine Abweichung. Ursachen können mechanisch oder elektrisch sein.",
+    "effects": "Leistungsabfall, ruckelige Bewegungen oder Schutzabschaltungen möglich.",
+    "causes": [
+      "Drucksensor/Leitung defekt",
+      "Ventil hängt/verschmutzt",
+      "Ölstand/Filter/Temperatur beeinflusst System"
+    ],
+    "next_steps": [
+      "Ölstand/Filterzustand prüfen",
+      "Druckmessung gegen Referenz (Manometer/Diagnose)",
+      "Sensor & Ventile prüfen"
+    ]
+  },
+  "TEMPERATUR": {
+    "title": "Temperatur: zu hoch/außerhalb Bereich",
+    "severity": "warn",
+    "operable": true,
+    "summary": "Eine Temperatur ist zu hoch oder außerhalb des zulässigen Bereichs.",
+    "meaning": "Das Steuergerät erkennt Übertemperatur oder fehlerhafte Temperaturwerte.",
+    "effects": "Leistungsreduzierung/Schutzfunktion möglich, um Schäden zu vermeiden.",
+    "causes": [
+      "Kühlung eingeschränkt (Kühler/Filter verschmutzt)",
+      "Lüfter/Ansteuerung defekt",
+      "Temperatursensor/Leitung fehlerhaft"
+    ],
+    "next_steps": [
+      "Kühler/Luftwege prüfen und reinigen",
+      "Lüfterfunktion prüfen",
+      "Sensorwerte plausibilisieren"
+    ]
+  },
+  "OELDRUCK": {
+    "title": "Motor: Öldruckwarnung",
+    "severity": "warn",
+    "operable": false,
+    "summary": "Der Motor meldet zu niedrigen Öldruck oder einen Öldruckfehler.",
+    "meaning": "Zu niedriger Öldruck kann in kurzer Zeit Motorschäden verursachen.",
+    "effects": "Nicht weiter unter Last betreiben. Sofort prüfen.",
+    "causes": [
+      "Ölstand zu niedrig / Ölverlust",
+      "Ölpumpe/Filter/Bypass problematisch",
+      "Öldrucksensor/Leitung fehlerhaft"
+    ],
+    "next_steps": [
+      "Motor sofort entlasten/abstellen (je nach Situation)",
+      "Ölstand & Leckage prüfen",
+      "Öldruck messen (mechanisch) und Sensor prüfen"
+    ],
+    "notes": "Sicherheitskritisch: Priorität hoch."
+  },
+  "BATTERIE_LADESYSTEM": {
+    "title": "Elektrik: Batterie/Ladesystem",
+    "severity": "warn",
+    "operable": true,
+    "summary": "Es gibt eine Störung an Batterie, Ladespannung oder Generator.",
+    "meaning": "Unter-/Überspannung kann Steuergeräte stören und Folgefehler auslösen.",
+    "effects": "Startprobleme, sporadische Elektronikfehler, Abschaltungen möglich.",
+    "causes": [
+      "Batterie schwach/defekt",
+      "Generator/Lichtmaschine/Regler defekt",
+      "Masseverbindung schlecht"
+    ],
+    "next_steps": [
+      "Batteriespannung unter Last messen",
+      "Ladespannung/Regler prüfen",
+      "Massepunkte/Verbindungen prüfen"
+    ]
+  }
+}

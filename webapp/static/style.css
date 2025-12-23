@@ -331,6 +331,31 @@ select:focus {
   white-space: pre-wrap;
 }
 
+/* Ersatzteile Tabelle */
+.parts-table {
+  margin-top: 6px;
+  display: grid;
+  gap: 2px;
+}
+
+.parts-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.6fr 2fr 2fr;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.parts-row.parts-head {
+  font-weight: 600;
+  color: #cbd5f5;
+}
+
+.parts-cell {
+  font-size: 0.8rem;
+  color: #e5e7eb;
+}
+
 /* BMK-Details (Toggle) */
 
 .bmk-details {

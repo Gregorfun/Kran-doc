@@ -9,7 +9,7 @@
 <body>
   <div class="page">
     <header class="page-header">
-      <h1>Kran-Doc. (Beta.Vers:1.1 12/25)</h1>
+      <h1>Kran-Doc. (Beta.Vers:1.2 12/25)</h1>
       <p>Dein Kran-Doktor: Fehlercodes prüfen, BMK-Infos sehen, Ort und Geber finden.</p>
     </header>
 
@@ -86,7 +86,6 @@
                 <select id="source_type" name="source_type">
                   <option value="">Alle</option>
                   <option value="lec_error">LEC-Fehler</option>
-                  <option value="bmk_component">BMK-Liste</option>
                   <option value="spl_reference">Schaltpläne</option>
                   <option value="base_document">Handbuch / Sonstiges</option>
                 </select>
@@ -146,6 +145,45 @@
         <div id="bmk-results" class="search-results"></div>
       </section>
 
+      <!-- 3) Ersatzteile / ETK Suche -->
+      <section class="card section">
+        <h2>🟢 Ersatzteile / ETK suchen</h2>
+        <p class="status-sub">
+          Suche nach Artikelnummer (z.B. 96011958) oder Begriff (DE/EN). Ergebnisse kommen aus dem Ersatzteilkatalog (ETK).
+        </p>
+
+        <form id="etk-form" class="search-form">
+          <label for="etk_query" class="field-label">Artikelnummer / Begriff</label>
+          <input id="etk_query" name="etk_query" type="text" placeholder="Beispiel: 96011958 oder KUEHLER oder RADIATOR">
+
+          <div class="search-row">
+            <div class="field-group">
+              <label for="etk_model" class="field-label">Modell</label>
+              <select id="etk_model" name="etk_model">
+                <option value="" disabled selected>Bitte Modell wählen</option>
+                {% if ss.model_names is defined and ss.model_names %}
+                  {% for m in ss.model_names %}
+                    <option value="{{ m }}">{{ m }}</option>
+                  {% endfor %}
+                {% else %}
+                  <option value="LTM1110-5.1">LTM1110-5.1</option>
+                {% endif %}
+              </select>
+            </div>
+
+            <div class="field-group narrow">
+              <label for="etk_limit" class="field-label">Max. Treffer</label>
+              <input id="etk_limit" name="etk_limit" type="number" value="10" min="1" max="200">
+            </div>
+          </div>
+
+          <button type="submit" class="btn">Ersatzteile suchen</button>
+        </form>
+
+        <div id="etk-status" class="search-status"></div>
+        <div id="etk-results" class="search-results"></div>
+      </section>
+
       {% include "_contact_modal.html" %}
     </main>
   </div>
@@ -164,9 +202,11 @@
       function updateResultsState() {
         var searchResults = document.getElementById('search-results');
         var bmkResults = document.getElementById('bmk-results');
+        var etkResults = document.getElementById('etk-results');
         var hasSearch = searchResults && searchResults.textContent.trim().length > 0;
         var hasBmk = bmkResults && bmkResults.textContent.trim().length > 0;
-        if (hasSearch || hasBmk) {
+        var hasEtk = etkResults && etkResults.textContent.trim().length > 0;
+        if (hasSearch || hasBmk || hasEtk) {
           document.body.classList.add('has-results');
         } else {
           document.body.classList.remove('has-results');
@@ -188,7 +228,7 @@
           "Fehler melden (bitte kurz beschreiben):\n" +
           "- Was ist falsch?\n" +
           "- Was w?re richtig?\n" +
-          "- Optional: Foto/Quelle erw?hnen"
+          "- Optional: Foto/Quelle erwähnen"
         );
 
         if (!note || !note.trim()) return;
@@ -324,7 +364,7 @@
           const model = r.model || meta.model || 'Unbekanntes Modell';
           const rawSource = r.source_type || meta.source_type || r.source || meta.source || '';
           const sourceLabel = mapSourceLabel(rawSource);
-          header.textContent = model + ' · ' + sourceLabel;
+          header.textContent = model + ' · ' + sourceLabel + ' · explain=' + (r.explain ? 'yes' : 'no');
 
           if (r.score != null) {
             card.title = 'Score: ' + Number(r.score).toFixed(3);
@@ -387,6 +427,75 @@
           const textBox = document.createElement('div');
           textBox.className = 'result-text';
 
+          if (r.explain) {
+            const explain = r.explain || {};
+            const explainBox = document.createElement('div');
+            explainBox.className = 'explain-box';
+
+            const headerRow = document.createElement('div');
+            headerRow.className = 'explain-header';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'explain-title';
+            titleEl.textContent = cleanDisplayText(explain.title || '');
+            headerRow.appendChild(titleEl);
+
+            const severity = (explain.severity || '').toString().toLowerCase();
+            if (severity === 'warn' || severity === 'info') {
+              const badge = document.createElement('span');
+              badge.className = 'explain-badge ' + (severity === 'warn' ? 'badge-warn' : 'badge-info');
+              badge.textContent = severity === 'warn' ? 'Warnung' : 'Info';
+              headerRow.appendChild(badge);
+            }
+
+            explainBox.appendChild(headerRow);
+
+            function addExplainSection(label, value) {
+              const cleaned = cleanDisplayText(value || '');
+              if (!cleaned) return;
+              const section = document.createElement('div');
+              section.className = 'explain-section';
+              const strong = document.createElement('strong');
+              strong.textContent = label + ':';
+              const span = document.createElement('span');
+              span.textContent = ' ' + cleaned;
+              section.appendChild(strong);
+              section.appendChild(span);
+              explainBox.appendChild(section);
+            }
+
+            function addExplainList(label, items) {
+              if (!Array.isArray(items)) return;
+              const cleanedItems = items
+                .map((x) => cleanDisplayText(x || ''))
+                .filter((x) => x);
+              if (!cleanedItems.length) return;
+              const section = document.createElement('div');
+              section.className = 'explain-section';
+              const strong = document.createElement('strong');
+              strong.textContent = label + ':';
+              section.appendChild(strong);
+              const ul = document.createElement('ul');
+              ul.className = 'explain-list';
+              cleanedItems.forEach((x) => {
+                const li = document.createElement('li');
+                li.textContent = x;
+                ul.appendChild(li);
+              });
+              section.appendChild(ul);
+              explainBox.appendChild(section);
+            }
+
+            addExplainSection('Kurzfassung', explain.summary);
+            addExplainSection('Bedeutung', explain.meaning);
+            addExplainSection('Auswirkung', explain.effects);
+            addExplainList('Ursachen', explain.causes);
+            addExplainList('Nächste Schritte', explain.next_steps);
+            addExplainSection('Hinweis', explain.notes);
+
+            textBox.appendChild(explainBox);
+          }
+
           const shortText = cleanDisplayText(meta.short_text || meta.title || r.title || '');
           const longText = cleanDisplayText(meta.long_text || meta.text || r.text || '');
 
@@ -438,6 +547,71 @@
 
           feedbackBar.appendChild(feedbackBtn);
           card.appendChild(feedbackBar);
+          resultsEl.appendChild(card);
+        });
+        updateResultsState();
+      }
+
+      function renderEtkResults(resultsEl, results, model) {
+        resultsEl.innerHTML = '';
+        if (!results || !results.length) {
+          resultsEl.textContent = 'Keine Treffer gefunden.';
+          updateResultsState();
+          return;
+        }
+
+        results.forEach((a) => {
+          const card = document.createElement('div');
+          card.className = 'result-card';
+
+          const header = document.createElement('div');
+          header.className = 'result-header';
+          header.textContent = (model || 'Unbekannt') + ' · Ersatzteile/ETK · ' + (a.assembly_article || '-');
+
+          const sub = document.createElement('div');
+          sub.className = 'result-score';
+          const nameDe = cleanDisplayText(a.name_de || '');
+          const nameEn = cleanDisplayText(a.name_en || '');
+          sub.textContent = nameEn ? (nameDe + ' · ' + nameEn) : nameDe;
+
+          const table = document.createElement('div');
+          table.className = 'parts-table';
+
+          const head = document.createElement('div');
+          head.className = 'parts-row parts-head';
+          ['Artikel', 'Menge', 'Bezeichnung (DE)', 'Description (EN)'].forEach((label) => {
+            const cell = document.createElement('div');
+            cell.className = 'parts-cell';
+            cell.textContent = label;
+            head.appendChild(cell);
+          });
+          table.appendChild(head);
+
+          (a.parts || []).forEach((p) => {
+            const row = document.createElement('div');
+            row.className = 'parts-row';
+            const deText = p.name_de || '';
+            const enText = p.name_en || '';
+            const cells = [
+              p.article_no || '',
+              p.qty || '',
+              deText || '',
+              enText || ''
+            ];
+            cells.forEach((value) => {
+              const cell = document.createElement('div');
+              cell.className = 'parts-cell';
+              cell.textContent = cleanDisplayText(value);
+              row.appendChild(cell);
+            });
+            table.appendChild(row);
+          });
+
+          card.appendChild(header);
+          if (nameDe || nameEn) {
+            card.appendChild(sub);
+          }
+          card.appendChild(table);
           resultsEl.appendChild(card);
         });
         updateResultsState();
@@ -548,6 +722,60 @@
             .catch(err => {
               console.error(err);
               setStatus(bmkStatus, 'Fehler bei der Anfrage: ' + err, 'error');
+            });
+        });
+      }
+
+      // Ersatzteile / ETK Suche
+      const etkForm = document.getElementById('etk-form');
+      const etkStatus = document.getElementById('etk-status');
+      const etkResults = document.getElementById('etk-results');
+
+      if (etkForm) {
+        etkForm.addEventListener('submit', function(ev) {
+          ev.preventDefault();
+
+          const q = document.getElementById('etk_query').value.trim();
+          const modelSelect = document.getElementById('etk_model');
+          const model = modelSelect ? modelSelect.value : '';
+          const limit = document.getElementById('etk_limit').value || '10';
+
+          if (!model) {
+            setStatus(etkStatus, 'Bitte ein Modell auswählen.', 'error');
+            markModelRequired(modelSelect);
+            return;
+          }
+
+          if (!q) {
+            setStatus(etkStatus, 'Bitte Artikelnummer oder Begriff eingeben.', 'error');
+            return;
+          }
+
+          setStatus(etkStatus, 'Ersatzteile-Suche lÇÏuft ...', 'pending');
+          etkResults.innerHTML = '';
+          updateResultsState();
+
+          fetch('{{ url_for("api_ersatzteile_search") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: model || null,
+              query: q,
+              limit: parseInt(limit, 10)
+            })
+          })
+            .then(resp => resp.json())
+            .then(data => {
+              if (!data.ok) {
+                setStatus(etkStatus, 'Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
+                return;
+              }
+              setStatus(etkStatus, 'Treffer: ' + data.results.length, 'ok');
+              renderEtkResults(etkResults, data.results, model);
+            })
+            .catch(err => {
+              console.error(err);
+              setStatus(etkStatus, 'Fehler bei der Anfrage: ' + err, 'error');
             });
         });
       }

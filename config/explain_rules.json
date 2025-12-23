@@ -1,0 +1,93 @@
+[
+  {
+    "category": "DPF_ASCHE",
+    "codes": [
+      "8DD079"
+    ]
+  },
+  {
+    "category": "DPF_ASCHE",
+    "match_all": [
+      "partikelfilter",
+      "asche"
+    ]
+  },
+  {
+    "category": "DPF_RUSS",
+    "match_all": [
+      "partikelfilter",
+      "ruß"
+    ]
+  },
+  {
+    "category": "DPF_RUSS",
+    "match_all": [
+      "dpf",
+      "ruß"
+    ]
+  },
+  {
+    "category": "BUS_COMM",
+    "match_any": [
+      "can",
+      "bus",
+      "lsb teilnehmer",
+      "kommunikation",
+      "datenbus"
+    ]
+  },
+  {
+    "category": "SENSOR_SIGNAL",
+    "match_any": [
+      "geber",
+      "sensor",
+      "signal",
+      "unplausibel",
+      "kurzschluss",
+      "unterbrechung"
+    ],
+    "match_none": [
+      "partikelfilter",
+      "dpf"
+    ]
+  },
+  {
+    "category": "HYDRAULIK_DRUCK",
+    "match_any": [
+      "hydraulik",
+      "druck",
+      "drucksensor",
+      "druck zu niedrig",
+      "druck zu hoch"
+    ]
+  },
+  {
+    "category": "TEMPERATUR",
+    "match_any": [
+      "temperatur",
+      "übertemperatur",
+      "zu heiß",
+      "zu warm",
+      "kühlmittel"
+    ]
+  },
+  {
+    "category": "OELDRUCK",
+    "match_any": [
+      "öldruck",
+      "oeldruck",
+      "oil pressure"
+    ]
+  },
+  {
+    "category": "BATTERIE_LADESYSTEM",
+    "match_any": [
+      "batterie",
+      "ladespannung",
+      "generator",
+      "lichtmaschine",
+      "spannung zu niedrig",
+      "spannung zu hoch"
+    ]
+  }
+]
