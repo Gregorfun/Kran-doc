@@ -373,11 +373,17 @@
           const metaBox = document.createElement('div');
           metaBox.className = 'result-meta';
 
-          const rawCode = (meta.code || meta.error_code || meta.bmk || '').toString().trim();
-          let codeToShow = '';
-          if (rawCode && (isLikelyErrorCode(rawCode) || isLikelyBmkCode(rawCode))) {
-            codeToShow = rawCode;
-          }
+          const bmkDebug = createMetaRow('BMK-DEBUG', JSON.stringify({
+            bmk: meta.bmk,
+            bmk_code: meta.bmk_code,
+            bmk_match: meta.bmk_match,
+            linked_bmk: meta.linked_bmk,
+            bmk_candidates: meta.bmk_candidates
+          }));
+          if (bmkDebug) metaBox.appendChild(bmkDebug);
+
+          const errorCode = (meta.code || meta.error_code || '').toString().trim();
+          const bmkCode = (meta.bmk || '').toString().trim();
 
           const rawDesc = meta.description || meta.beschreibung || '';
           const usefulDesc = extractUsefulDescription(rawDesc);
@@ -389,8 +395,14 @@
           const blatt = meta.blatt || meta.sheet || '';
           const wagon = meta.wagon || meta.wagen || '';
 
-          const codeRow = createMetaRow('Fehler/BMK', codeToShow);
-          if (codeRow) metaBox.appendChild(codeRow);
+          if (errorCode && isLikelyErrorCode(errorCode)) {
+            const codeRow = createMetaRow('Fehlercode', errorCode);
+            if (codeRow) metaBox.appendChild(codeRow);
+          }
+          if (bmkCode && isLikelyBmkCode(bmkCode)) {
+            const bmkRow = createMetaRow('BMK', bmkCode);
+            if (bmkRow) metaBox.appendChild(bmkRow);
+          }
 
           // ✅ hier kommt jetzt der Klartext rein (z.B. "Tastatureinheit links")
           const descRow = createMetaRow('Beschreibung', usefulDesc);
