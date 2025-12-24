@@ -356,6 +356,67 @@ select:focus {
   color: #e5e7eb;
 }
 
+.bmk-link-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #cbd5f5;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.bmk-link-btn:hover {
+  color: #e5e7eb;
+  text-decoration: underline;
+}
+
+.bmk-link-btn:focus-visible {
+  outline: 2px solid rgba(203, 213, 245, 0.6);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.traffic {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  line-height: 1.2;
+  margin-right: 6px;
+}
+
+.traffic-info {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.traffic-warn {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.traffic-critical {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.traffic-advice {
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.9;
+  line-height: 1.35;
+  color: #d1d5db;
+}
+
 /* BMK-Details (Toggle) */
 
 .bmk-details {

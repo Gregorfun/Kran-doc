@@ -1,0 +1,44 @@
+[1mdiff --git a/webapp/templates/index.html b/webapp/templates/index.html[m
+[1mindex 2d1ce44..e26d8b1 100644[m
+[1m--- a/webapp/templates/index.html[m
+[1m+++ b/webapp/templates/index.html[m
+[36m@@ -373,11 +373,17 @@[m
+           const metaBox = document.createElement('div');[m
+           metaBox.className = 'result-meta';[m
+ [m
+[31m-          const rawCode = (meta.code || meta.error_code || meta.bmk || '').toString().trim();[m
+[31m-          let codeToShow = '';[m
+[31m-          if (rawCode && (isLikelyErrorCode(rawCode) || isLikelyBmkCode(rawCode))) {[m
+[31m-            codeToShow = rawCode;[m
+[31m-          }[m
+[32m+[m[32m          const bmkDebug = createMetaRow('BMK-DEBUG', JSON.stringify({[m
+[32m+[m[32m            bmk: meta.bmk,[m
+[32m+[m[32m            bmk_code: meta.bmk_code,[m
+[32m+[m[32m            bmk_match: meta.bmk_match,[m
+[32m+[m[32m            linked_bmk: meta.linked_bmk,[m
+[32m+[m[32m            bmk_candidates: meta.bmk_candidates[m
+[32m+[m[32m          }));[m
+[32m+[m[32m          if (bmkDebug) metaBox.appendChild(bmkDebug);[m
+[32m+[m
+[32m+[m[32m          const errorCode = (meta.code || meta.error_code || '').toString().trim();[m
+[32m+[m[32m          const bmkCode = (meta.bmk || '').toString().trim();[m
+ [m
+           const rawDesc = meta.description || meta.beschreibung || '';[m
+           const usefulDesc = extractUsefulDescription(rawDesc);[m
+[36m@@ -389,8 +395,14 @@[m
+           const blatt = meta.blatt || meta.sheet || '';[m
+           const wagon = meta.wagon || meta.wagen || '';[m
+ [m
+[31m-          const codeRow = createMetaRow('Fehler/BMK', codeToShow);[m
+[31m-          if (codeRow) metaBox.appendChild(codeRow);[m
+[32m+[m[32m          if (errorCode && isLikelyErrorCode(errorCode)) {[m
+[32m+[m[32m            const codeRow = createMetaRow('Fehlercode', errorCode);[m
+[32m+[m[32m            if (codeRow) metaBox.appendChild(codeRow);[m
+[32m+[m[32m          }[m
+[32m+[m[32m          if (bmkCode && isLikelyBmkCode(bmkCode)) {[m
+[32m+[m[32m            const bmkRow = createMetaRow('BMK', bmkCode);[m
+[32m+[m[32m            if (bmkRow) metaBox.appendChild(bmkRow);[m
+[32m+[m[32m          }[m
+ [m
+           // ✅ hier kommt jetzt der Klartext rein (z.B. "Tastatureinheit links")[m
+           const descRow = createMetaRow('Beschreibung', usefulDesc);[m

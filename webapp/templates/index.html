@@ -364,7 +364,14 @@
           const model = r.model || meta.model || 'Unbekanntes Modell';
           const rawSource = r.source_type || meta.source_type || r.source || meta.source || '';
           const sourceLabel = mapSourceLabel(rawSource);
-          header.textContent = model + ' · ' + sourceLabel + ' · explain=' + (r.explain ? 'yes' : 'no');
+          header.textContent = model + ' · ' + sourceLabel;
+
+          const sensorText = (meta.sensor_name || meta.geber_name || meta.title || '').toString();
+          const bmkMatch = sensorText.match(/BMK\s*([A-Z]\d{1,4}(?:[.\-]\w{1,6})?)/i);
+          let bmkCode = bmkMatch ? bmkMatch[1].toUpperCase().trim() : '';
+          if (!bmkCode && meta.bmk) {
+            bmkCode = String(meta.bmk).toUpperCase().trim();
+          }
 
           if (r.score != null) {
             card.title = 'Score: ' + Number(r.score).toFixed(3);
@@ -373,17 +380,7 @@
           const metaBox = document.createElement('div');
           metaBox.className = 'result-meta';
 
-          const bmkDebug = createMetaRow('BMK-DEBUG', JSON.stringify({
-            bmk: meta.bmk,
-            bmk_code: meta.bmk_code,
-            bmk_match: meta.bmk_match,
-            linked_bmk: meta.linked_bmk,
-            bmk_candidates: meta.bmk_candidates
-          }));
-          if (bmkDebug) metaBox.appendChild(bmkDebug);
-
           const errorCode = (meta.code || meta.error_code || '').toString().trim();
-          const bmkCode = (meta.bmk || '').toString().trim();
 
           const rawDesc = meta.description || meta.beschreibung || '';
           const usefulDesc = extractUsefulDescription(rawDesc);
@@ -400,8 +397,39 @@
             if (codeRow) metaBox.appendChild(codeRow);
           }
           if (bmkCode && isLikelyBmkCode(bmkCode)) {
-            const bmkRow = createMetaRow('BMK', bmkCode);
-            if (bmkRow) metaBox.appendChild(bmkRow);
+            const row = document.createElement('div');
+            row.className = 'meta-row';
+
+            const l = document.createElement('span');
+            l.className = 'meta-label';
+            l.textContent = 'BMK:';
+
+            const v = document.createElement('span');
+            v.className = 'meta-value';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bmk-link-btn';
+            btn.textContent = bmkCode;
+            btn.addEventListener('click', () => {
+              const q = document.getElementById('bmk_query');
+              const m = document.getElementById('bmk_model');
+              if (q) q.value = bmkCode;
+              if (m) m.value = model;
+              const f = document.getElementById('bmk-form');
+              if (f) {
+                if (typeof f.requestSubmit === 'function') {
+                  f.requestSubmit();
+                } else {
+                  f.dispatchEvent(new Event('submit', { cancelable: true }));
+                }
+              }
+            });
+
+            v.appendChild(btn);
+            row.appendChild(l);
+            row.appendChild(v);
+            metaBox.appendChild(row);
           }
 
           // ✅ hier kommt jetzt der Klartext rein (z.B. "Tastatureinheit links")
@@ -441,11 +469,34 @@
 
           if (r.explain) {
             const explain = r.explain || {};
+            const sevRaw = (explain.severity || '').toString().toLowerCase().trim();
+            const operable = (explain.operable === false) ? false : true;
+            let sev = 'info';
+            if (!operable) sev = 'critical';
+            else if (sevRaw === 'critical' || sevRaw === 'kritisch') sev = 'critical';
+            else if (sevRaw === 'warn' || sevRaw === 'warning' || sevRaw === 'warnung') sev = 'warn';
+            else sev = 'info';
+
+            let trafficLabel = 'INFO';
+            let trafficAdvice = 'Hinweis. Beobachten, bei Wiederholung prüfen.';
+            if (sev === 'critical') {
+              trafficLabel = 'KRITISCH';
+              trafficAdvice = 'Nicht weiter betreiben. Ursache sofort prüfen.';
+            } else if (sev === 'warn') {
+              trafficLabel = 'WARNUNG';
+              trafficAdvice = 'Weiterbetrieb möglich, aber zeitnah prüfen / Service planen.';
+            }
+
             const explainBox = document.createElement('div');
             explainBox.className = 'explain-box';
 
             const headerRow = document.createElement('div');
             headerRow.className = 'explain-header';
+
+            const traffic = document.createElement('span');
+            traffic.className = 'traffic ' + (sev === 'critical' ? 'traffic-critical' : (sev === 'warn' ? 'traffic-warn' : 'traffic-info'));
+            traffic.textContent = trafficLabel;
+            headerRow.appendChild(traffic);
 
             const titleEl = document.createElement('div');
             titleEl.className = 'explain-title';
@@ -461,6 +512,11 @@
             }
 
             explainBox.appendChild(headerRow);
+
+            const trafficAdviceEl = document.createElement('div');
+            trafficAdviceEl.className = 'traffic-advice';
+            trafficAdviceEl.textContent = trafficAdvice;
+            explainBox.appendChild(trafficAdviceEl);
 
             function addExplainSection(label, value) {
               const cleaned = cleanDisplayText(value || '');
@@ -730,6 +786,10 @@
               }
               setStatus(bmkStatus, 'Treffer: ' + data.results.length, 'ok');
               renderResults(bmkResults, data.results);
+              const target = bmkResults.querySelector('.result-card') || bmkResults;
+              if (target && target.scrollIntoView) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
             })
             .catch(err => {
               console.error(err);

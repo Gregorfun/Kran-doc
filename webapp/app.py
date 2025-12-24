@@ -411,7 +411,14 @@ def _attach_explain(results: List[Any], model: Optional[str]) -> List[Any]:
             if isinstance(r, dict) and "explain" not in r:
                 code = _extract_error_code_from_result(r)
                 if code and code in catalog:
-                    r["explain"] = catalog[code]
+                    explain_data = catalog[code]
+                    if "metadata" not in r or not isinstance(r.get("metadata"), dict):
+                        r["metadata"] = {}
+                    if isinstance(explain_data, dict):
+                        r["metadata"].update(explain_data)
+                    else:
+                        r["metadata"].update({"explain": explain_data})
+                    r["explain"] = explain_data
         except Exception:
             continue
     return results
