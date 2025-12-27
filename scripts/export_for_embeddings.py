@@ -4,6 +4,10 @@ import json
 import os
 import re
 import uuid
+# --- NEW ---
+import hashlib
+from datetime import datetime
+import subprocess
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Iterator
@@ -15,6 +19,14 @@ OUT_CHUNKS = BASE_DIR / "output" / "embeddings" / "knowledge_chunks.jsonl"
 
 bmk_freq = Counter()
 BMK_TOKEN_RE = re.compile(r"\b[A-Z]{1,3}\d{1,4}\*?\b")
+
+# --- NEW ---
+DEDUPE_HASHES: set[str] = set()
+DEDUPE_SKIPPED = 0
+META_ID_SOURCES: Dict[str, str] = {}
+CHUNKS_BY_LAYER: Dict[str, int] = {}
+WRITTEN_CHUNKS = 0
+SOURCE_FILES: List[str] = []
 
 
 def _env_int(name: str, default: int) -> int:
@@ -43,6 +55,120 @@ def load_json(path: Path) -> Any:
     except Exception:
         # Windows/UTF-8-BOM Fallback
         return json.loads(path.read_text(encoding="utf-8-sig"))
+
+# --- NEW ---
+def _normalize_text(text: str) -> str:
+    return " ".join((text or "").split())
+
+# --- NEW ---
+def _hash_key(text: str, layer: str, topic: str) -> str:
+    payload = _normalize_text(text) + (layer or "") + (topic or "")
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+# --- NEW ---
+def _validate_meta_id(meta_id: Any, source_info: str) -> None:
+    if meta_id is None:
+        return
+    meta_id_str = str(meta_id)
+    if meta_id_str in META_ID_SOURCES:
+        prev = META_ID_SOURCES[meta_id_str]
+        print(f"[ERROR] Duplicate meta id '{meta_id_str}' from {source_info}; already seen from {prev}")
+        raise SystemExit(1)
+    META_ID_SOURCES[meta_id_str] = source_info
+
+# --- NEW ---
+def _maybe_write_obj(out_file, obj: Dict[str, Any], source_info: str) -> bool:
+    global DEDUPE_SKIPPED, WRITTEN_CHUNKS
+    text = (obj.get("text") or "").strip()
+    if not text:
+        return False
+    metadata = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
+    layer = str(metadata.get("layer") or "")
+    topic = str(metadata.get("topic") or "")
+    _validate_meta_id(metadata.get("id"), source_info)
+    h = _hash_key(text, layer, topic)
+    if h in DEDUPE_HASHES:
+        DEDUPE_SKIPPED += 1
+        return False
+    DEDUPE_HASHES.add(h)
+    out_file.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    WRITTEN_CHUNKS += 1
+    layer_key = layer or "unknown"
+    CHUNKS_BY_LAYER[layer_key] = CHUNKS_BY_LAYER.get(layer_key, 0) + 1
+    return True
+
+def load_liccon_general_cards(base_dir: Path) -> List[Dict[str, Any]]:
+    path = base_dir / "output" / "general" / "liccon_general_starterpack.json"
+    if not path.exists():
+        print(f"[WARN] LICCON general starterpack fehlt: {path}")
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[WARN] LICCON general starterpack ungültig: {path} ({e})")
+        return []
+    # --- NEW ---
+    if str(path) not in SOURCE_FILES:
+        SOURCE_FILES.append(str(path))
+    if not isinstance(data, dict):
+        print(f"[WARN] LICCON general starterpack: JSON-Root ist kein Objekt: {path}")
+        return []
+    cards = data.get("cards") or []
+    if not isinstance(cards, list):
+        print(f"[WARN] LICCON general starterpack: 'cards' ist keine Liste: {path}")
+        return []
+    return [c for c in cards if isinstance(c, dict)]
+
+def cards_to_chunks(cards: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    chunks: List[Dict[str, Any]] = []
+    for card in cards:
+        title = (card.get("title") or "").strip()
+        summary = (card.get("summary") or "").strip()
+        steps = card.get("steps") if isinstance(card.get("steps"), list) else []
+        tags = card.get("tags") if isinstance(card.get("tags"), list) else []
+        source = card.get("source") if isinstance(card.get("source"), dict) else {}
+
+        lines: List[str] = []
+        if title:
+            lines.append(title)
+        if summary:
+            lines.append(summary)
+        if steps:
+            cleaned_steps = [str(s).strip() for s in steps if str(s).strip()]
+            if cleaned_steps:
+                lines.append("Schritte:")
+                lines.extend([f"- {s}" for s in cleaned_steps])
+        if tags:
+            cleaned_tags = [str(t).strip() for t in tags if str(t).strip()]
+            if cleaned_tags:
+                lines.append("Tags: " + ", ".join(cleaned_tags))
+        if source:
+            pdf = source.get("pdf")
+            pages = source.get("pages")
+            if pdf or pages:
+                parts = []
+                if pdf:
+                    parts.append(str(pdf).strip())
+                if pages:
+                    parts.append(str(pages).strip())
+                if parts:
+                    lines.append("Quelle: " + " ".join(parts))
+
+        text = "\n".join(lines).strip()
+        if not text:
+            continue
+
+        meta: Dict[str, Any] = {
+            "layer": "liccon_general",
+            "topic": card.get("topic"),
+            "severity_hint": card.get("severity_hint"),
+            "source": source,
+            "title": card.get("title"),
+            "id": card.get("id"),
+        }
+        chunks.append({"text": text, "meta": meta})
+
+    return chunks
 
 
 def find_full_knowledge_files() -> List[Path]:
@@ -109,7 +235,8 @@ def write_chunk(
         "metadata": metadata,
     }
 
-    out_file.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    # --- NEW ---
+    _maybe_write_obj(out_file, obj, f"model={model} source={source}")
 
 
 def clean_bmk_description(desc: Any) -> str:
@@ -495,7 +622,8 @@ def export_spl_references(data: Dict[str, Any], model: str, out_file) -> int:
             "text": f"SPL {'BMK' if kind == 'bmk_ref' else 'Sheet'}: {ref}",
             "metadata": {"model": model, "source": "spl_reference", **meta},
         }
-        out_file.write(json.dumps(obj, ensure_ascii=False) + "\n")
+        # --- NEW ---
+        _maybe_write_obj(out_file, obj, f"model={model} source=spl_reference")
 
     for ref in bmk_refs:
         key = ("bmk_ref", ref)
@@ -522,6 +650,15 @@ def export_spl_references(data: Dict[str, Any], model: str, out_file) -> int:
 
 def export() -> None:
     print("=== EXPORT FOR EMBEDDINGS ===")
+
+    # --- NEW ---
+    global DEDUPE_HASHES, DEDUPE_SKIPPED, META_ID_SOURCES, CHUNKS_BY_LAYER, WRITTEN_CHUNKS, SOURCE_FILES
+    DEDUPE_HASHES = set()
+    DEDUPE_SKIPPED = 0
+    META_ID_SOURCES = {}
+    CHUNKS_BY_LAYER = {}
+    WRITTEN_CHUNKS = 0
+    SOURCE_FILES = []
 
     files = find_full_knowledge_files()
     print(f"[INFO] FULL_KNOWLEDGE-Dateien gefunden: {len(files)}")
@@ -595,8 +732,9 @@ def export() -> None:
                         "kind": "bmk_ref",
                     },
                 }
-                out.write(json.dumps(obj, ensure_ascii=False) + "\n")
-                total_chunks += 1
+                # --- NEW ---
+                if _maybe_write_obj(out, obj, f"model={model} source=spl_reference"):
+                    total_chunks += 1
 
             for ref in norm_sheet:
                 obj = {
@@ -614,13 +752,62 @@ def export() -> None:
                         "kind": "sheet_ref",
                     },
                 }
-                out.write(json.dumps(obj, ensure_ascii=False) + "\n")
-                total_chunks += 1
+                # --- NEW ---
+                if _maybe_write_obj(out, obj, f"model={model} source=spl_reference"):
+                    total_chunks += 1
 
             print(f"   [SPL] export BMK: {len(norm_bmk)}  Sheet: {len(norm_sheet)}")
 
+        liccon_cards = load_liccon_general_cards(BASE_DIR)
+        liccon_chunks = cards_to_chunks(liccon_cards)
+        for chunk in liccon_chunks:
+            if _maybe_write_obj(
+                out,
+                {
+                    "id": new_chunk_id(),
+                    "text": chunk["text"],
+                    "metadata": {"model": "general", "source": "liccon_general", **chunk["meta"]},
+                },
+                "model=general source=liccon_general",
+            ):
+                total_chunks += 1
+        print(
+            "LICCON general: added "
+            f"{len(liccon_chunks)} chunks from output/general/liccon_general_starterpack.json"
+        )
+
+    # --- NEW ---
+    index_version_path = BASE_DIR / "output" / "embeddings" / "index_version.json"
+    git_commit = "unknown"
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            git_commit = (result.stdout or "").strip() or "unknown"
+    except Exception:
+        git_commit = "unknown"
+
+    index_version = {
+        "built_at": datetime.now().isoformat(timespec="seconds"),
+        "git_commit": git_commit,
+        "chunks_total": WRITTEN_CHUNKS,
+        "chunks_by_layer": CHUNKS_BY_LAYER,
+        "source_files": SOURCE_FILES,
+    }
+    index_version_path.parent.mkdir(parents=True, exist_ok=True)
+    with index_version_path.open("w", encoding="utf-8") as f:
+        json.dump(index_version, f, ensure_ascii=False, indent=2)
+
     print(f"\n[RESULT] Gesamt-Chunks: {total_chunks}")
     print(f"[RESULT] JSONL geschrieben nach: {OUT_CHUNKS}")
+    print(f"DEDUP: skipped {DEDUPE_SKIPPED} duplicate chunks by hash")
+    print(f"VALIDATION: unique ids OK ({len(META_ID_SOURCES)} total)")
+    print(f"VERSION: wrote {index_version_path}")
     print("=== FERTIG ===")
 
 
@@ -631,3 +818,7 @@ def export_chunks_jsonl() -> None:
 
 if __name__ == "__main__":
     export()
+
+# Run:
+# 1) python scripts/export_for_embeddings.py
+# 2) python scripts/build_local_embedding_index.py
