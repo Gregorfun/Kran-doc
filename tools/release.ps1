@@ -44,7 +44,7 @@ function Update-Readme([string]$newVersion, [string[]]$bullets) {
   # Version ersetzen im Block "Aktuelle Version"
   $readme = [regex]::Replace(
     $readme,
-    '(?s)(## Aktuelle Version\s*\R\*\*)v?\d+\.\d+\.\d+(\*\*)',
+    '(?s)(## Aktuelle Version\s*(?:\r?\n)\*\*)v?\d+\.\d+\.\d+(\*\*)',
     "## Aktuelle Version`r`n**v$newVersion`$2"
   )
 
@@ -52,7 +52,7 @@ function Update-Readme([string]$newVersion, [string[]]$bullets) {
   $newBullets = ($bullets | ForEach-Object { "- " + $_ }) -join "`r`n"
   $readme = [regex]::Replace(
     $readme,
-    '(?s)(## Letzte Änderungen\s*\R)(.*?)(\R\R## |\R\R# |\z)',
+    '(?s)(## Letzte Änderungen\s*(?:\r?\n))(.*?)(?:\r?\n){2}(## |# |\z)',
     "`$1$newBullets`r`n`r`n`$3"
   )
 
@@ -74,7 +74,7 @@ function Update-Changelog([string]$newVersion, [string[]]$bullets) {
 
   $cl = [regex]::Replace(
     $cl,
-    '(?s)(## \[Unreleased\]\s*\R)',
+    '(?s)(## \[Unreleased\]\s*(?:\r?\n))',
     "`$1$insert",
     1
   )
