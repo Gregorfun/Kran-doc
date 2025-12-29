@@ -18,6 +18,7 @@ Die Webapp nutzt anschließend:
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -53,6 +54,13 @@ def _load_chunks() -> List[Dict[str, Any]]:
             if not isinstance(obj, dict):
                 continue
 
+            # --- NEW ---
+            src_meta = obj.get("metadata", {})
+            if not isinstance(src_meta, dict):
+                src_meta = {}
+            dst_meta = dict(src_meta)
+            obj["metadata"] = dst_meta
+
             text = obj.get("text") or obj.get("chunk") or ""
             if not text.strip():
                 # leere Texte ignorieren
@@ -82,27 +90,38 @@ def build_index() -> None:
 
     metadatas: List[Dict[str, Any]] = []
     for c in chunks:
-        meta = dict(c)
-        meta.pop("text", None)
+        # --- NEW ---
+        src_meta = c.get("metadata", {})
+        if not isinstance(src_meta, dict):
+            src_meta = {}
+        dst_meta = dict(src_meta)
+
         # Modell sicherstellen
-        if "model" not in meta and "modell" in meta:
-            meta["model"] = meta.get("modell")
+        if "model" not in dst_meta and "modell" in dst_meta:
+            dst_meta["model"] = dst_meta.get("modell")
 
         # Source-Type heuristisch, falls nicht gesetzt
-        st = (meta.get("source_type") or meta.get("type") or meta.get("origin") or "").lower()
-        if not meta.get("source_type"):
+        st = (
+            dst_meta.get("source_type")
+            or c.get("source_type")
+            or c.get("type")
+            or c.get("origin")
+            or ""
+        ).lower()
+        if not dst_meta.get("source_type"):
             if st in ("handbuch", "manual", "base_document", "page"):
-                meta["source_type"] = "base_document"
+                dst_meta["source_type"] = "base_document"
             elif st in ("lec", "lec_error", "error", "fehler"):
-                meta["source_type"] = "lec_error"
+                dst_meta["source_type"] = "lec_error"
             elif st.startswith("bmk"):
-                meta["source_type"] = "bmk_component"
+                dst_meta["source_type"] = "bmk_component"
             elif st.startswith("spl"):
-                meta["source_type"] = "spl_reference"
+                dst_meta["source_type"] = "spl_reference"
             else:
-                meta["source_type"] = "UNKNOWN"
+                dst_meta["source_type"] = "UNKNOWN"
 
-        metadatas.append(meta)
+        meta_entry = {"id": c.get("id"), "metadata": dst_meta, "source_type": dst_meta.get("source_type")}
+        metadatas.append(meta_entry)
 
     print(f"[EMB] Lade SentenceTransformer-Modell: sentence-transformers/all-MiniLM-L6-v2")
     model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
@@ -126,6 +145,8 @@ def build_index() -> None:
 
     print(f"[EMB] Index gespeichert in: {INDEX_PATH}")
     print(f"[EMB] Metadaten gespeichert in: {META_PATH}")
+    # --- NEW ---
+    print("META layer counts:", Counter(m.get("metadata", {}).get("layer") for m in metadatas if isinstance(m, dict)))
     print("=== FERTIG ===")
 
 

@@ -4,6 +4,8 @@ import json
 import os
 import re
 import sys
+# --- NEW ---
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -402,6 +404,93 @@ def _extract_error_code_from_result(r: Dict[str, Any]) -> Optional[str]:
             return s
     return None
 
+def _flatten_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        parts: List[str] = []
+        for k, v in value.items():
+            if v is None:
+                continue
+            key = str(k).strip()
+            val = _flatten_text(v).strip()
+            if not val:
+                continue
+            if key:
+                parts.append(f"{key}: {val}")
+            else:
+                parts.append(val)
+        return " ".join(parts).strip()
+    if isinstance(value, (list, tuple, set)):
+        parts = [p for p in (_flatten_text(v).strip() for v in value) if p]
+        return " ".join(parts).strip()
+    return str(value).strip()
+
+def _extract_explain_text(result: Dict[str, Any]) -> str:
+    if not isinstance(result, dict):
+        return ""
+    explain = result.get("explain")
+    if explain:
+        return _flatten_text(explain).strip()
+    meta = result.get("metadata") or {}
+    if isinstance(meta, dict):
+        explain = meta.get("explain")
+        if explain:
+            return _flatten_text(explain).strip()
+    return ""
+
+def _meta_to_text(meta: Any) -> str:
+    if not isinstance(meta, dict):
+        return ""
+    return _flatten_text(meta).strip()
+
+def classify_traffic_light(explain_text: str, meta: dict) -> Dict[str, str]:
+    text = (explain_text or "").lower()
+    meta_text = _meta_to_text(meta).lower()
+
+    red_keywords = [
+        "kritisch", "sofort", "not-aus", "not aus", "abschalten", "stop", "brand", "überhitz",
+        "kurzschluss", "hydraulikdruck", "druck zu hoch", "brems", "lenkung", "ausfall sicherheit",
+        "sicherheitsrelevant",
+    ]
+    yellow_keywords = [
+        "warnung", "kommunikation", "can", "lsb", "datenbus", "sporadisch", "wackler",
+        "teilnehmer offline", "telegramm", "feuchtigkeit", "korrosion", "kontaktproblem",
+        "leitung", "abschirmung",
+    ]
+
+    def _find_match(hay: str, keywords: List[str]) -> Optional[str]:
+        for kw in keywords:
+            if kw in hay:
+                return kw
+        return None
+
+    red_match = _find_match(text, red_keywords) or _find_match(meta_text, red_keywords)
+    if red_match:
+        return {
+            "traffic": "red",
+            "traffic_label": "KRITISCH",
+            "traffic_advice": "Betrieb stoppen bzw. sofort prüfen. Fehler kann Folgeschäden verursachen.",
+            "traffic_reason": red_match,
+        }
+
+    yellow_match = _find_match(text, yellow_keywords) or _find_match(meta_text, yellow_keywords)
+    if yellow_match:
+        return {
+            "traffic": "yellow",
+            "traffic_label": "WARNUNG",
+            "traffic_advice": "Weiterbetrieb möglich, aber zeitnah prüfen / Service planen.",
+            "traffic_reason": yellow_match,
+        }
+
+    return {
+        "traffic": "green",
+        "traffic_label": "OK",
+        "traffic_advice": "Weiterbetrieb möglich. Beobachten.",
+    }
+
 def _attach_explain(results: List[Any], model: Optional[str]) -> List[Any]:
     catalog = _load_explain_catalog(model)
     if not catalog:
@@ -423,6 +512,123 @@ def _attach_explain(results: List[Any], model: Optional[str]) -> List[Any]:
             continue
     return results
 
+def _attach_traffic_light(results: List[Any]) -> List[Any]:
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        explain_text = _extract_explain_text(r)
+        if not explain_text:
+            continue
+        meta = r.get("metadata") or {}
+        if not isinstance(meta, dict):
+            meta = {}
+        traffic = classify_traffic_light(explain_text, meta)
+        r["traffic_light"] = traffic
+        if "metadata" not in r or not isinstance(r.get("metadata"), dict):
+            r["metadata"] = {}
+        r["metadata"]["traffic_light"] = traffic
+    return results
+
+# --- NEW ---
+def _safe_str(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+# --- NEW ---
+def _result_dedupe_key(result: Dict[str, Any]) -> str:
+    meta = result.get("metadata") or {}
+    meta_id = meta.get("id")
+    if meta_id:
+        return f"id:{meta_id}"
+    title = _safe_str(meta.get("title") or result.get("title") or "")
+    text = _safe_str(result.get("text") or result.get("chunk") or "")
+    payload = (title + "\n" + text).strip()
+    return "hash:" + hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+# --- NEW ---
+def _dedupe_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen: set[str] = set()
+    out: List[Dict[str, Any]] = []
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        key = _result_dedupe_key(r)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+# --- NEW ---
+def _search_general(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+    if search_similar is None:
+        return []
+    # --- NEW ---
+    top_k = max(2, min(int(top_k or 3), 4))
+    # --- NEW ---
+    candidates_k = min(80, max(40, int(top_k) * 10))
+    try:
+        # --- NEW ---
+        results = search_similar(query, top_k=candidates_k, model_filter="general", source_type_filter=None)
+    except TypeError:
+        # --- NEW ---
+        results = search_similar(query, candidates_k)
+    except Exception:
+        return []
+    filtered: List[Dict[str, Any]] = []
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        # --- NEW ---
+        meta = r.get("metadata") or {}
+        # --- NEW ---
+        layer = None
+        # --- NEW ---
+        if isinstance(meta, dict):
+            # --- NEW ---
+            layer = meta.get("layer")
+            # --- NEW ---
+            nested = meta.get("metadata") if layer is None else None
+            # --- NEW ---
+            if isinstance(nested, dict):
+                # --- NEW ---
+                layer = nested.get("layer")
+                # --- NEW ---
+                if layer is not None:
+                    # --- NEW ---
+                    r["metadata"] = nested
+        # --- NEW ---
+        if layer == "liccon_general":
+            # --- NEW ---
+            # Friendly labels for UI (avoid showing "general · UNKNOWN")
+            # --- NEW ---
+            r2 = dict(r)
+            # --- NEW ---
+            meta2 = dict(meta)
+            # --- NEW ---
+            r2["model"] = "Frage / Antwort"
+            # --- NEW ---
+            # Normalize source_type label
+            # --- NEW ---
+            st = r2.get("source_type") or meta2.get("source_type") or "Diagnose"
+            # --- NEW ---
+            if not st or st == "UNKNOWN":
+                # --- NEW ---
+                st = "Antwort"
+            # --- NEW ---
+            r2["source_type"] = st
+            # --- NEW ---
+            meta2["model"] = "Frage / Antwort"
+            # --- NEW ---
+            if not meta2.get("source_type") or meta2.get("source_type") == "UNKNOWN":
+                # --- NEW ---
+                meta2["source_type"] = "antwort"
+            # --- NEW ---
+            r2["metadata"] = meta2
+            # --- NEW ---
+            filtered.append(r2)
+    return filtered[:top_k]
 @lru_cache(maxsize=64)
 def _load_full_knowledge_model(model: str) -> Dict[str, Any]:
     mdir = _model_dir(model)
@@ -1062,33 +1268,74 @@ def api_search():
 
     question = (data.get("question") or "").strip()
     top_k = int(data.get("top_k") or 5)
-    model = data.get("model") or None
-    source_type = data.get("source_type") or None
+    model = (data.get("model") or "").strip()
+    if model.lower() in ("alle", "all", "*"):
+        model = ""
+    source_type = (data.get("source_type") or "").strip()
+    source_type_filter = source_type
+    if not source_type_filter or source_type_filter.lower() in ("alle", "all", "*"):
+        source_type_filter = None
+    source_mode = (source_type_filter or "general").lower()
 
     if not question:
         return jsonify({"ok": False, "error": "Bitte eine Frage eingeben."}), 400
     if not model:
         return jsonify({"ok": False, "error": "Bitte ein Modell auswählen"}), 400
 
-    # ✅ Fehlercode-Direktmodus
+    # ✅ Fehlercode-Direktmodus (nur LEC / Combo)
     requested_codes = _extract_error_codes(question)
-    if _is_pure_code_query(question, requested_codes, source_type):
+    if source_mode in ("lec_error", "combo") and _is_pure_code_query(question, requested_codes, "lec_error"):
         results = _direct_lec_results_for_codes(requested_codes, model_hint=model, top_k=1)
         results = _enrich_results_with_bmk(results, model_hint=model)
         results = _attach_explain(results, model)
-        return jsonify({"ok": True, "results": results})
+        results = _attach_traffic_light(results)
+        general_results: List[Dict[str, Any]] = []
+        if source_mode == "combo":
+            general_results = _search_general(question, top_k=top_k)
+            print(f"[GENERAL] returned {len(general_results)} items")
+            general_results = _attach_explain(general_results, model)
+            general_results = _attach_traffic_light(general_results)
+            general_results = _dedupe_results(general_results)
+        print(f"[SEARCH] q={question!r} model={model!r} source_type_filter={source_mode!r} results={len(results)} general={len(general_results)}")
+        return jsonify({"ok": True, "results": results, "general_results": general_results})
 
     # ✅ Normale Embedding-Suche + Enrichment
     try:
-        results = search_similar(question, top_k=top_k, model_filter=model, source_type_filter=source_type)
+        if source_mode == "general":
+            results = []
+            general_results = _search_general(question, top_k=top_k)
+        elif source_mode == "combo":
+            results = search_similar(question, top_k=top_k, model_filter=model, source_type_filter="lec_error")
+            general_results = _search_general(question, top_k=top_k)
+        elif source_mode == "lec_error":
+            results = search_similar(question, top_k=top_k, model_filter=model, source_type_filter="lec_error")
+            general_results = []
+        elif source_mode == "spl":
+            results = search_similar(question, top_k=top_k, model_filter=model, source_type_filter="spl")
+            general_results = []
+        elif source_mode == "manual":
+            results = search_similar(question, top_k=top_k, model_filter=model, source_type_filter="manual")
+            general_results = []
+        else:
+            results = search_similar(question, top_k=top_k, model_filter=model, source_type_filter=source_type_filter)
+            general_results = []
     except TypeError:
         results = search_similar(question, top_k)
+        general_results = []
     except Exception as e:
         return jsonify({"ok": False, "error": f"Fehler bei der Embedding-Suche: {e}"}), 500
 
-    results = _enrich_results_with_bmk(results, model_hint=model)
-    results = _attach_explain(results, model)
-    return jsonify({"ok": True, "results": results})
+    if results:
+        results = _enrich_results_with_bmk(results, model_hint=model)
+        results = _attach_explain(results, model)
+        results = _attach_traffic_light(results)
+    if general_results:
+        print(f"[GENERAL] returned {len(general_results)} items")
+        general_results = _attach_explain(general_results, model)
+        general_results = _attach_traffic_light(general_results)
+        general_results = _dedupe_results(general_results)
+    print(f"[SEARCH] q={question!r} model={model!r} source_type_filter={source_mode!r} results={len(results)} general={len(general_results)}")
+    return jsonify({"ok": True, "results": results, "general_results": general_results})
 
 @app.route("/api/bmk_search", methods=["POST"])
 def api_bmk_search():

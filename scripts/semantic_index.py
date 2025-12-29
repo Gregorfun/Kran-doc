@@ -42,8 +42,34 @@ def _load_index() -> Tuple[np.ndarray, List[str], List[Dict[str, Any]]]:
     with META_PATH.open("r", encoding="utf-8") as f:
         meta = json.load(f)
 
-    texts: List[str] = meta.get("texts", [])
-    metadatas: List[Dict[str, Any]] = meta.get("metadatas", [])
+    texts: List[str] = []
+    metadatas: List[Dict[str, Any]] = []
+    if isinstance(meta, dict) and "texts" in meta:
+        texts = meta.get("texts", [])
+        metas_raw = meta.get("metadatas", meta.get("metas", []))
+        if isinstance(metas_raw, list):
+            for entry in metas_raw:
+                if isinstance(entry, dict) and isinstance(entry.get("metadata"), dict):
+                    inner = dict(entry.get("metadata") or {})
+                    if entry.get("id") is not None and "_id" not in inner:
+                        inner["_id"] = entry.get("id")
+                    if entry.get("source_type") is not None and "source_type" not in inner:
+                        inner["source_type"] = entry.get("source_type")
+                    metadatas.append(inner)
+                elif isinstance(entry, dict):
+                    metadatas.append(entry)
+                else:
+                    metadatas.append({})
+    elif isinstance(meta, list):
+        for entry in meta:
+            if isinstance(entry, dict):
+                texts.append(entry.get("text") or entry.get("chunk") or "")
+                tmp = dict(entry)
+                tmp.pop("text", None)
+                metadatas.append(tmp)
+            else:
+                texts.append("")
+                metadatas.append({})
 
     if len(texts) != embeddings.shape[0] or len(metadatas) != embeddings.shape[0]:
         raise RuntimeError(
@@ -103,18 +129,24 @@ def search_similar(
     top_idx = np.argpartition(-sims, pre_k - 1)[:pre_k]
     top_idx = top_idx[np.argsort(-sims[top_idx])]
 
+    source_type_filter_norm = (source_type_filter or "").strip()
+    if source_type_filter_norm.lower() in ("alle", "all", "*", ""):
+        source_type_filter_norm = None
+    if source_type_filter_norm:
+        source_type_filter_norm = _normalize_source_type(source_type_filter_norm)
+
     results: List[Dict[str, Any]] = []
     for idx in top_idx:
         meta = dict(metadatas[idx] or {})
         text = texts[idx]
 
         mname = meta.get("model") or meta.get("modell") or "UNKNOWN"
-        stype = meta.get("source_type") or meta.get("type") or "UNKNOWN"
+        stype = meta.get("source_type") or meta.get("type") or meta.get("source") or "UNKNOWN"
         stype = _normalize_source_type(str(stype))
 
         if model_filter and mname != model_filter:
             continue
-        if source_type_filter and stype != source_type_filter:
+        if source_type_filter_norm and stype != source_type_filter_norm:
             continue
 
         results.append({
