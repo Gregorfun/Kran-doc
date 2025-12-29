@@ -13,8 +13,8 @@ $ErrorActionPreference = "Stop"
 function Assert-CleanGit {
   $status = git status --porcelain
   if ($status) {
-    Write-Host "❌ Working tree ist nicht clean. Bitte erst committen oder stagen." -ForegroundColor Red
-    exit 1
+    Write-Host "ERROR: Working tree ist nicht clean. Bitte erst committen oder stagen." -ForegroundColor Red
+    throw "Working tree not clean"
   }
 }
 
@@ -109,4 +109,4 @@ git tag "v$new"
 git push
 git push --tags
 
-Write-Host "✅ Released v$new" -ForegroundColor Green
+Write-Host "OK: Released v$new" -ForegroundColor Green
