@@ -1,28 +1,11 @@
 # PDFDoc / Kran-Tools
 
 ## Aktuelle Version
-**v0.1.0**
+**v0.2.0**
 
 ## Letzte Änderungen
-- Initialer Stand
-> Vollständige Historie: siehe `CHANGELOG.md`
-
-**Ziel:**  
-PDF- und Schaltplan-Dokumente von Liebherr-Mobilkranen (z. B. LTM1110-5.1) automatisch in **strukturierte JSON-Wissensmodule** umwandeln, die später von einem Kran-GPT oder anderen Tools genutzt werden können.
-
-Das System:
-
-- erkennt das **Kranmodell automatisch** aus dem PDF-Inhalt (z. B. `LTM1110-5.1`),
-- parst verschiedene Dokumenttypen:
-  - **Wissensmodule** aus allgemeinen PDFs (BAL, Bedienungsanleitung usw.),
-  - **LEC-Fehlercodelisten**,
-  - **SPL-Schaltpläne** (mit OCR-Fallback),
-  - **BMK-Listen** (Unterwagen/Oberwagen),
-- erzeugt pro Modell ein gemeinsames `*_GPT51_FULL_KNOWLEDGE.json`,
-- baut **globale Indizes** (Fehlercodes/BMKs),
-- bietet eine **CLI mit Menü** und eine **Weboberfläche**.
-
----
+- Feat: Webapp UI/Antworten verbessert
+- Feat: Semantischer Index/Embedding-Build �berarbeitet
 
 ## Ordnerstruktur
 
