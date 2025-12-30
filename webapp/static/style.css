@@ -378,6 +378,15 @@ select:focus {
   border-radius: 2px;
 }
 
+.community-link {
+  color: #93c5fd;
+  text-decoration: underline;
+}
+
+.community-link:hover {
+  color: #e0f2fe;
+}
+
 .traffic {
   display: inline-block;
   font-size: 12px;
@@ -703,6 +712,115 @@ select:focus {
 body.has-results .page,
 body.has-results .page-main {
   padding-bottom: 180px;
+}
+
+/* Community */
+.community-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.community-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #bfdbfe;
+}
+
+.community-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.community-card {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(8, 12, 28, 0.9);
+  padding: 10px 12px;
+}
+
+.community-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.community-meta {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+
+.community-section {
+  margin: 6px 0;
+}
+
+.community-section strong {
+  color: #cbd5f5;
+}
+
+.community-list ul {
+  margin: 6px 0 0 16px;
+  padding: 0;
+}
+
+.community-list li {
+  margin: 2px 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.admin-section-title {
+  margin: 14px 0 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #cbd5f5;
+}
+
+.admin-review-card {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(12, 16, 36, 0.85);
+  margin-bottom: 10px;
+}
+
+.admin-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.admin-review-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-review-actions textarea,
+.admin-review-actions input[type="text"],
+.admin-review-actions input[type="number"] {
+  width: 100%;
+}
+
+.muted {
+  color: #9ca3af;
+  font-size: 0.85rem;
 }
 
 @media (min-width: 1024px) {

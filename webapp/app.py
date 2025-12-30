@@ -6,13 +6,17 @@ import re
 import sys
 # --- NEW ---
 import hashlib
+import secrets
+import threading
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from functools import lru_cache
+from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from webapp.telegram_notify import send_telegram
 from flask import Flask, flash, jsonify, redirect, render_template, render_template_string, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 # ============================================================
 # Projekt-Root sicher setzen (damit imports aus /scripts und /config funktionieren)
@@ -110,6 +114,229 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or os.environ.get("KRANDOC_SECRET") or "kran-doc-secret-key"
 app.permanent_session_lifetime = timedelta(hours=24)
 _PIN = os.environ.get("PIN_CODE") or os.environ.get("KRANDOC_PIN")
+
+@app.after_request
+def set_charset(response):
+    ct = response.headers.get("Content-Type", "")
+    if "text/html" in ct or ct == "":
+        response.headers["Content-Type"] = "text/html; charset=utf-8"
+    return response
+
+# ============================================================
+# Community-Storage (JSON, MVP)
+# ============================================================
+
+COMMUNITY_DIR = BASE_DIR / "community"
+USERS_PATH = COMMUNITY_DIR / "users.json"
+SOLUTIONS_PATH = COMMUNITY_DIR / "solutions.json"
+_community_lock = threading.Lock()
+
+def _utc_now() -> datetime:
+    return datetime.utcnow().replace(microsecond=0)
+
+def _format_ts(dt: Optional[datetime] = None) -> str:
+    value = dt or _utc_now()
+    return value.isoformat() + "Z"
+
+def _parse_ts(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        cleaned = value.strip()
+        if cleaned.endswith("Z"):
+            cleaned = cleaned[:-1]
+        return datetime.fromisoformat(cleaned)
+    except ValueError:
+        return None
+
+def load_json_file(path: Path, default: Any) -> Any:
+    try:
+        if not path.exists():
+            return default
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+def save_json_atomic(path: Path, data: Any) -> None:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    tmp_path.replace(path)
+
+def _ensure_community_storage() -> None:
+    COMMUNITY_DIR.mkdir(parents=True, exist_ok=True)
+    if not USERS_PATH.exists():
+        save_json_atomic(USERS_PATH, [])
+    if not SOLUTIONS_PATH.exists():
+        save_json_atomic(SOLUTIONS_PATH, [])
+
+def _normalize_email(value: str) -> str:
+    return (value or "").strip().lower()
+
+def _normalize_model(value: str) -> str:
+    return (value or "").strip()
+
+def _normalize_error_code(value: str) -> str:
+    return (value or "").strip().upper()
+
+def _user_status(user: Optional[Dict[str, Any]]) -> str:
+    if not user:
+        return "unknown"
+    status = (user.get("status") or "").strip().lower()
+    if not status:
+        return "approved" if user.get("role") == "admin" else "approved"
+    return status
+
+def _solution_status(solution: Dict[str, Any]) -> str:
+    status = (solution.get("status") or "").strip().lower()
+    return status or "approved"
+
+def _split_lines(value: str) -> List[str]:
+    if not value:
+        return []
+    lines = [ln.strip() for ln in value.replace("\r", "\n").split("\n")]
+    return [ln for ln in lines if ln]
+
+def _generate_pseudonym(existing: set[str]) -> str:
+    for _ in range(20):
+        suffix = secrets.randbelow(9000) + 1000
+        name = f"KranFuchs-{suffix}"
+        if name not in existing:
+            return name
+    return f"KranFuchs-{uuid.uuid4().hex[:6]}"
+
+def _load_users() -> List[Dict[str, Any]]:
+    with _community_lock:
+        data = load_json_file(USERS_PATH, [])
+    return data if isinstance(data, list) else []
+
+def _save_users(users: List[Dict[str, Any]]) -> None:
+    with _community_lock:
+        save_json_atomic(USERS_PATH, users)
+
+def _load_solutions() -> List[Dict[str, Any]]:
+    with _community_lock:
+        data = load_json_file(SOLUTIONS_PATH, [])
+    return data if isinstance(data, list) else []
+
+def _save_solutions(solutions: List[Dict[str, Any]]) -> None:
+    with _community_lock:
+        save_json_atomic(SOLUTIONS_PATH, solutions)
+
+def _find_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    target = _normalize_email(email)
+    for u in _load_users():
+        if _normalize_email(u.get("email") or "") == target:
+            return u
+    return None
+
+def _find_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+    for u in _load_users():
+        if u.get("user_id") == user_id:
+            return u
+    return None
+
+def _seed_admin_if_needed() -> None:
+    users = _load_users()
+    admin_email = os.environ.get("KRANDOC_ADMIN_EMAIL") or ""
+    admin_password = os.environ.get("KRANDOC_ADMIN_PASSWORD") or ""
+    target_email = _normalize_email(admin_email) if admin_email else ""
+
+    if target_email and _find_user_by_email(target_email):
+        return
+
+    if users:
+        if target_email and admin_password:
+            admin_user = {
+                "user_id": uuid.uuid4().hex,
+                "email": target_email,
+                "password_hash": generate_password_hash(admin_password),
+                "role": "admin",
+                "status": "approved",
+                "display_name": "Admin",
+                "display_mode": "custom",
+                "real_name": "",
+                "created_at": _format_ts(),
+                "reviewed_by": None,
+                "reviewed_at": None,
+                "decision_note": None,
+            }
+            users.append(admin_user)
+            _save_users(users)
+            print("[KRAN-DOC] Admin-Account aus ENV erstellt.")
+        return
+
+    default_email = target_email or "admin@local"
+    default_password = admin_password or "admin123"
+    admin_user = {
+        "user_id": uuid.uuid4().hex,
+        "email": default_email,
+        "password_hash": generate_password_hash(default_password),
+        "role": "admin",
+        "status": "approved",
+        "display_name": "Admin",
+        "display_mode": "custom",
+        "real_name": "",
+        "created_at": _format_ts(),
+        "reviewed_by": None,
+        "reviewed_at": None,
+        "decision_note": None,
+    }
+    users.append(admin_user)
+    _save_users(users)
+    print("[KRAN-DOC] Admin-Seed erstellt: email=%s pass=%s (bitte ändern)" % (default_email, default_password))
+
+def _current_user() -> Optional[Dict[str, Any]]:
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
+    return _find_user_by_id(user_id)
+
+def _login_user(user: Dict[str, Any]) -> None:
+    session.permanent = True
+    session["user_id"] = user.get("user_id")
+
+def _logout_user() -> None:
+    session.pop("user_id", None)
+
+def _login_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not _current_user():
+            flash("Bitte zuerst einloggen.", "error")
+            return redirect(url_for("account_login", next=request.path))
+        return fn(*args, **kwargs)
+    return wrapper
+
+def _admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = _current_user()
+        if not user or user.get("role") != "admin":
+            flash("Admin-Rechte erforderlich.", "error")
+            return redirect(url_for("index"))
+        return fn(*args, **kwargs)
+    return wrapper
+
+def _user_submission_count(user_id: str, since: datetime) -> int:
+    count = 0
+    for s in _load_solutions():
+        if s.get("created_by") != user_id:
+            continue
+        created_at = _parse_ts(s.get("created_at"))
+        if created_at and created_at >= since:
+            count += 1
+    return count
+
+def _telegram_configured() -> bool:
+    token = os.getenv("KRANDOC_TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("KRANDOC_TELEGRAM_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+    return bool((token or "").strip() and (chat_id or "").strip())
+
+_ensure_community_storage()
+_seed_admin_if_needed()
 
 
 def _pin_login_required() -> bool:
@@ -1181,6 +1408,15 @@ def compute_system_status() -> Dict[str, Any]:
 # Web-Routen
 # ============================================================
 
+@app.context_processor
+def inject_current_user():
+    user = _current_user()
+    return {
+        "current_user": user,
+        "is_admin": bool(user and user.get("role") == "admin"),
+        "current_user_status": _user_status(user) if user else None,
+    }
+
 @app.before_request
 def require_pin_login():
     if not _pin_login_required():
@@ -1199,7 +1435,7 @@ def require_pin_login():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if not _pin_login_required():
-        return redirect(url_for("index"))
+        return redirect(url_for("account_login", next=request.args.get("next") or ""))
 
     error = None
     next_param = request.args.get("next") or ""
@@ -1217,6 +1453,114 @@ def login():
         error = "Falscher PIN."
 
     return render_template("login.html", error=error, next_param=next_param)
+
+
+@app.route("/account/login", methods=["GET", "POST"])
+def account_login():
+    next_param = request.form.get("next") or request.args.get("next") or ""
+    if next_param and not next_param.startswith("/"):
+        next_param = ""
+
+    error = None
+    if request.method == "POST":
+        email = _normalize_email(request.form.get("email") or "")
+        password = request.form.get("password") or ""
+        user = _find_user_by_email(email)
+        if not user or not check_password_hash(user.get("password_hash") or "", password):
+            error = "Login fehlgeschlagen. Bitte prüfen."
+        else:
+            status = _user_status(user)
+            if status == "rejected":
+                note = (user.get("decision_note") or "").strip()
+                if note:
+                    error = f"Account abgelehnt. Grund: {note}"
+                else:
+                    error = "Account abgelehnt."
+            else:
+                _login_user(user)
+                if status != "approved":
+                    flash("Dein Account wartet auf Freigabe. Du kannst noch keine Lösungen posten.", "error")
+                else:
+                    flash("Login erfolgreich.", "success")
+                return redirect(_safe_next_url(next_param))
+
+    return render_template("auth/login.html", error=error, next_param=next_param)
+
+
+@app.route("/account/register", methods=["GET", "POST"])
+def account_register():
+    next_param = request.form.get("next") or request.args.get("next") or ""
+    if next_param and not next_param.startswith("/"):
+        next_param = ""
+
+    error = None
+    if request.method == "POST":
+        email = _normalize_email(request.form.get("email") or "")
+        password = request.form.get("password") or ""
+        display_name_input = (request.form.get("display_name") or "").strip()
+        real_name = (request.form.get("real_name") or "").strip()
+
+        if not email or "@" not in email:
+            error = "Bitte eine gueltige Email angeben."
+        elif not password or len(password) < 6:
+            error = "Passwort muss mindestens 6 Zeichen lang sein."
+        elif _find_user_by_email(email):
+            error = "Email ist bereits registriert."
+        else:
+            users = _load_users()
+            existing_names = {u.get("display_name") for u in users if u.get("display_name")}
+            if display_name_input:
+                display_name = display_name_input
+                display_mode = "custom"
+            else:
+                display_name = _generate_pseudonym(existing_names)
+                display_mode = "auto"
+
+            user = {
+                "user_id": uuid.uuid4().hex,
+                "email": email,
+                "password_hash": generate_password_hash(password),
+                "role": "user",
+                "status": "pending",
+                "display_name": display_name,
+                "display_mode": display_mode,
+                "real_name": real_name,
+                "created_at": _format_ts(),
+                "reviewed_by": None,
+                "reviewed_at": None,
+                "decision_note": None,
+            }
+            users.append(user)
+            _save_users(users)
+
+            if _telegram_configured():
+                try:
+                    send_telegram(f"🆕 Neuer User pending: {display_name} ({email})")
+                except Exception:
+                    pass
+
+            _login_user(user)
+            flash("Registrierung erfolgreich. Dein Account wartet auf Freigabe.", "success")
+            return redirect(_safe_next_url(next_param or url_for("index")))
+
+    return render_template("auth/register.html", error=error, next_param=next_param)
+
+
+@app.route("/account/logout", methods=["POST"])
+def account_logout():
+    _logout_user()
+    flash("Logout erfolgreich.", "success")
+    return redirect(url_for("index"))
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    return account_register()
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    return account_logout()
 
 
 @app.route("/", methods=["GET"])
@@ -1245,6 +1589,364 @@ def run_pipeline():
         flash(f"Pipeline-Fehler: {e}", "error")
 
     return redirect(url_for("index"))
+
+
+# ============================================================
+# Community-Routen
+# ============================================================
+
+def _filter_approved_solutions(model: str, error_code: str) -> List[Dict[str, Any]]:
+    solutions = [
+        s for s in _load_solutions()
+        if _solution_status(s) == "approved" and _normalize_error_code(s.get("error_code") or "") == error_code
+    ]
+    if model:
+        exact = [s for s in solutions if _normalize_model(s.get("model") or "") == model]
+        if exact:
+            return exact
+    return solutions
+
+@app.route("/community/solutions/<path:model>/<path:error_code>")
+def community_solutions(model: str, error_code: str):
+    model_norm = _normalize_model(model)
+    error_norm = _normalize_error_code(error_code)
+    solutions = _filter_approved_solutions(model_norm, error_norm)
+    return render_template(
+        "community_solutions.html",
+        model=model_norm,
+        error_code=error_norm,
+        solutions=solutions,
+    )
+
+@app.route("/community/submit", methods=["GET", "POST"])
+@_login_required
+def community_submit():
+    user = _current_user()
+    if not user:
+        return redirect(url_for("account_login"))
+
+    status = _user_status(user)
+    if status != "approved":
+        if status == "pending":
+            flash("Dein Account wartet auf Freigabe. Du kannst noch keine Lösungen posten.", "error")
+        elif status == "rejected":
+            flash("Dein Account wurde abgelehnt. Du kannst keine Lösungen posten.", "error")
+        else:
+            flash("Dein Account ist nicht freigegeben.", "error")
+        return redirect(url_for("index"))
+
+    prefill_model = _normalize_model(request.args.get("model") or "")
+    prefill_code = _normalize_error_code(request.args.get("error_code") or "")
+
+    error = None
+    if request.method == "POST":
+        model = _normalize_model(request.form.get("model") or "")
+        error_code = _normalize_error_code(request.form.get("error_code") or "")
+        title = (request.form.get("title") or "").strip()
+        symptom = (request.form.get("symptom") or "").strip()
+        cause = (request.form.get("cause") or "").strip()
+        fix_steps = _split_lines(request.form.get("fix_steps") or "")
+        parts_tools = _split_lines(request.form.get("parts_tools") or "")
+        safety_note = (request.form.get("safety_note") or "").strip()
+
+        if not model:
+            error = "Modell ist erforderlich."
+        elif not error_code:
+            error = "Fehlercode ist erforderlich."
+        elif not title:
+            error = "Titel ist erforderlich."
+        elif not symptom:
+            error = "Symptom ist erforderlich."
+        elif not cause:
+            error = "Ursache ist erforderlich."
+        elif not fix_steps:
+            error = "Mindestens ein Schritt ist erforderlich."
+        else:
+            since = _utc_now() - timedelta(hours=24)
+            if _user_submission_count(user.get("user_id"), since) >= 3:
+                error = "Limit erreicht: max. 3 Einsendungen pro 24h."
+
+        if not error:
+            solutions = _load_solutions()
+            payload = {
+                "solution_id": uuid.uuid4().hex,
+                "model": model,
+                "error_code": error_code,
+                "title": title,
+                "symptom": symptom,
+                "cause": cause,
+                "fix_steps": fix_steps,
+                "parts_tools": parts_tools,
+                "safety_note": safety_note,
+                "status": "pending",
+                "created_by": user.get("user_id"),
+                "created_display_name": user.get("display_name"),
+                "created_at": _format_ts(),
+                "reviewed_by": None,
+                "reviewed_at": None,
+                "decision_note": None,
+            }
+            solutions.append(payload)
+            _save_solutions(solutions)
+
+            if _telegram_configured():
+                try:
+                    msg = f"🛠 Neue Lösung pending: {model} / {error_code} - {title} von {user.get('display_name')}"
+                    send_telegram(msg)
+                except Exception:
+                    pass
+
+            flash("Danke! Lösung eingereicht und wartet auf Freigabe.", "success")
+            return redirect(url_for("community_solutions", model=model, error_code=error_code))
+
+    return render_template(
+        "community/submit_solution.html",
+        error=error,
+        prefill_model=prefill_model,
+        prefill_code=prefill_code,
+    )
+
+
+@app.route("/admin", methods=["GET"])
+@_admin_required
+def admin_dashboard():
+    users = _load_users()
+    solutions = _load_solutions()
+    pending_users = [u for u in users if _user_status(u) == "pending"]
+    pending_solutions = [s for s in solutions if _solution_status(s) == "pending"]
+    return render_template(
+        "admin/dashboard.html",
+        pending_users_count=len(pending_users),
+        pending_solutions_count=len(pending_solutions),
+    )
+
+
+@app.route("/admin/users", methods=["GET"])
+@_admin_required
+def admin_users():
+    status_filter = (request.args.get("status") or "pending").strip().lower()
+    if status_filter not in ("pending", "approved", "rejected", "all"):
+        status_filter = "pending"
+    users = _load_users()
+    if status_filter != "all":
+        users = [u for u in users if _user_status(u) == status_filter]
+    users.sort(key=lambda u: _parse_ts(u.get("created_at")) or datetime.min, reverse=True)
+    return render_template(
+        "admin/users.html",
+        users=users,
+        status_filter=status_filter,
+    )
+
+
+@app.route("/admin/users/<user_id>/approve", methods=["POST"])
+@_admin_required
+def admin_user_approve(user_id: str):
+    users = _load_users()
+    admin_user = _current_user()
+    updated = False
+    for u in users:
+        if u.get("user_id") != user_id:
+            continue
+        u["status"] = "approved"
+        u["reviewed_by"] = admin_user.get("user_id") if admin_user else None
+        u["reviewed_at"] = _format_ts()
+        u["decision_note"] = (request.form.get("decision_note") or "").strip() or None
+        updated = True
+        break
+
+    if updated:
+        _save_users(users)
+        flash("User freigegeben.", "success")
+    else:
+        flash("User nicht gefunden.", "error")
+
+    status_filter = request.form.get("status") or request.args.get("status") or "pending"
+    return redirect(url_for("admin_users", status=status_filter))
+
+
+@app.route("/admin/users/<user_id>/reject", methods=["POST"])
+@_admin_required
+def admin_user_reject(user_id: str):
+    decision_note = (request.form.get("decision_note") or "").strip()
+    if not decision_note:
+        flash("Ablehnung benötigt eine Begründung.", "error")
+        status_filter = request.form.get("status") or request.args.get("status") or "pending"
+        return redirect(url_for("admin_users", status=status_filter))
+
+    users = _load_users()
+    admin_user = _current_user()
+    updated = False
+    for u in users:
+        if u.get("user_id") != user_id:
+            continue
+        u["status"] = "rejected"
+        u["reviewed_by"] = admin_user.get("user_id") if admin_user else None
+        u["reviewed_at"] = _format_ts()
+        u["decision_note"] = decision_note
+        updated = True
+        break
+
+    if updated:
+        _save_users(users)
+        flash("User abgelehnt.", "success")
+    else:
+        flash("User nicht gefunden.", "error")
+
+    status_filter = request.form.get("status") or request.args.get("status") or "pending"
+    return redirect(url_for("admin_users", status=status_filter))
+
+
+@app.route("/admin/solutions", methods=["GET"])
+@_admin_required
+def admin_solutions():
+    status_filter = (request.args.get("status") or "pending").strip().lower()
+    if status_filter not in ("pending", "approved", "rejected", "all"):
+        status_filter = "pending"
+    solutions = _load_solutions()
+    if status_filter != "all":
+        solutions = [s for s in solutions if _solution_status(s) == status_filter]
+    solutions.sort(key=lambda s: _parse_ts(s.get("created_at")) or datetime.min, reverse=True)
+    return render_template(
+        "admin/solutions.html",
+        solutions=solutions,
+        status_filter=status_filter,
+    )
+
+
+@app.route("/admin/solutions/<solution_id>/approve", methods=["POST"])
+@_admin_required
+def admin_solution_approve(solution_id: str):
+    solutions = _load_solutions()
+    admin_user = _current_user()
+    updated = False
+    for s in solutions:
+        if s.get("solution_id") != solution_id:
+            continue
+        s["status"] = "approved"
+        s["reviewed_by"] = admin_user.get("user_id") if admin_user else None
+        s["reviewed_at"] = _format_ts()
+        s["decision_note"] = (request.form.get("decision_note") or "").strip() or None
+        updated = True
+        break
+
+    if updated:
+        _save_solutions(solutions)
+        flash("Lösung freigegeben.", "success")
+    else:
+        flash("Lösung nicht gefunden.", "error")
+
+    status_filter = request.form.get("status") or request.args.get("status") or "pending"
+    return redirect(url_for("admin_solutions", status=status_filter))
+
+
+@app.route("/admin/solutions/<solution_id>/reject", methods=["POST"])
+@_admin_required
+def admin_solution_reject(solution_id: str):
+    decision_note = (request.form.get("decision_note") or "").strip()
+    if not decision_note:
+        flash("Ablehnung benötigt eine Begründung.", "error")
+        status_filter = request.form.get("status") or request.args.get("status") or "pending"
+        return redirect(url_for("admin_solutions", status=status_filter))
+
+    solutions = _load_solutions()
+    admin_user = _current_user()
+    updated = False
+    for s in solutions:
+        if s.get("solution_id") != solution_id:
+            continue
+        s["status"] = "rejected"
+        s["reviewed_by"] = admin_user.get("user_id") if admin_user else None
+        s["reviewed_at"] = _format_ts()
+        s["decision_note"] = decision_note
+        updated = True
+        break
+
+    if updated:
+        _save_solutions(solutions)
+        flash("Lösung abgelehnt.", "success")
+    else:
+        flash("Lösung nicht gefunden.", "error")
+
+    status_filter = request.form.get("status") or request.args.get("status") or "pending"
+    return redirect(url_for("admin_solutions", status=status_filter))
+
+
+@app.route("/admin/community/review", methods=["GET"])
+@_admin_required
+def community_review():
+    solutions = _load_solutions()
+    pending = [s for s in solutions if _solution_status(s) == "pending"]
+    approved = [s for s in solutions if _solution_status(s) == "approved"]
+    rejected = [s for s in solutions if _solution_status(s) == "rejected"]
+    return render_template(
+        "community_review.html",
+        pending=pending,
+        approved=approved,
+        rejected=rejected,
+    )
+
+def _apply_solution_updates(solution: Dict[str, Any], form: Any) -> None:
+    solution["model"] = _normalize_model(form.get("model") or solution.get("model") or "")
+    solution["error_code"] = _normalize_error_code(form.get("error_code") or solution.get("error_code") or "")
+    solution["title"] = (form.get("title") or solution.get("title") or "").strip()
+    solution["symptom"] = (form.get("symptom") or solution.get("symptom") or "").strip()
+    solution["cause"] = (form.get("cause") or solution.get("cause") or "").strip()
+    solution["fix_steps"] = _split_lines(form.get("fix_steps") or "\n".join(solution.get("fix_steps") or []))
+    solution["parts_tools"] = _split_lines(form.get("parts_tools") or "\n".join(solution.get("parts_tools") or []))
+    solution["safety_note"] = (form.get("safety_note") or solution.get("safety_note") or "").strip()
+
+@app.route("/admin/community/approve/<solution_id>", methods=["POST"])
+@_admin_required
+def community_approve(solution_id: str):
+    solutions = _load_solutions()
+    user = _current_user()
+    updated = False
+    for s in solutions:
+        if s.get("solution_id") != solution_id:
+            continue
+        _apply_solution_updates(s, request.form)
+        s["status"] = "approved"
+        s["reviewed_by"] = user.get("user_id") if user else None
+        s["reviewed_at"] = _format_ts()
+        s["decision_note"] = (request.form.get("decision_note") or "").strip() or None
+        updated = True
+        break
+
+    if updated:
+        _save_solutions(solutions)
+        flash("Lösung freigegeben.", "success")
+    else:
+        flash("Lösung nicht gefunden.", "error")
+    return redirect(url_for("community_review"))
+
+@app.route("/admin/community/reject/<solution_id>", methods=["POST"])
+@_admin_required
+def community_reject(solution_id: str):
+    decision_note = (request.form.get("decision_note") or "").strip()
+    if not decision_note:
+        flash("Ablehnung benötigt eine Begründung.", "error")
+        return redirect(url_for("community_review"))
+
+    solutions = _load_solutions()
+    user = _current_user()
+    updated = False
+    for s in solutions:
+        if s.get("solution_id") != solution_id:
+            continue
+        _apply_solution_updates(s, request.form)
+        s["status"] = "rejected"
+        s["reviewed_by"] = user.get("user_id") if user else None
+        s["reviewed_at"] = _format_ts()
+        s["decision_note"] = decision_note
+        updated = True
+        break
+
+    if updated:
+        _save_solutions(solutions)
+        flash("Lösung abgelehnt.", "success")
+    else:
+        flash("Lösung nicht gefunden.", "error")
+    return redirect(url_for("community_review"))
 
 
 # ============================================================
@@ -1371,7 +2073,7 @@ def api_ersatzteile_search():
         limit = 10
 
     if not model:
-        return jsonify({"ok": False, "error": "Bitte ein Modell auswÇÏhlen"}), 400
+        return jsonify({"ok": False, "error": "Bitte ein Modell auswählen"}), 400
     if not query:
         return jsonify({"ok": False, "error": "Bitte Suchbegriff eingeben."}), 400
 
@@ -1379,7 +2081,7 @@ def api_ersatzteile_search():
 
     data = _load_ersatzteile_for_model(model)
     if not data:
-        return jsonify({"ok": False, "error": "Keine Ersatzteile fÇ¬r dieses Modell vorhanden"})
+        return jsonify({"ok": False, "error": "Keine Ersatzteile für dieses Modell vorhanden"})
 
     q = query.lower()
 

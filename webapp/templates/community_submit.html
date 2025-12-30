@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kran-Doc Community - LČ©sung einreichen</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Community-LČ©sung einreichen</h1>
+      <p>Alle Community-BeitrČ©ge werden vor VerČ¶ffentlichung geprČ¼ft.</p>
+      <div class="actions-grid">
+        <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
+        {% if current_user %}
+          <form method="post" action="{{ url_for('account_logout') }}">
+            <button class="btn" type="submit">Logout</button>
+          </form>
+        {% endif %}
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="card section">
+      <div class="community-headline">
+        <h2>LČ©sung einreichen</h2>
+        <span class="community-badge">Community-LČ©sung (nicht offiziell)</span>
+      </div>
+      <p class="status-sub">Haftungshinweis: Community-Inhalte sind Erfahrungswerte. Nutzung auf eigene Verantwortung.</p>
+      {% if error %}
+        <p class="status-warn">{{ error }}</p>
+      {% endif %}
+      <form method="post" class="search-form">
+        <label class="field-label" for="model">Modell</label>
+        <input id="model" name="model" type="text" required value="{{ prefill_model }}">
+
+        <label class="field-label" for="error_code">Fehlercode</label>
+        <input id="error_code" name="error_code" type="text" required value="{{ prefill_code }}">
+
+        <label class="field-label" for="title">Titel</label>
+        <input id="title" name="title" type="text" required placeholder="Kurzfassung der LČ©sung">
+
+        <label class="field-label" for="symptom">Symptom</label>
+        <textarea id="symptom" name="symptom" rows="2" required></textarea>
+
+        <label class="field-label" for="cause">Ursache</label>
+        <textarea id="cause" name="cause" rows="2" required></textarea>
+
+        <label class="field-label" for="fix_steps">LČ©sungsschritte (eine Zeile = ein Schritt)</label>
+        <textarea id="fix_steps" name="fix_steps" rows="4" required></textarea>
+
+        <label class="field-label" for="parts_tools">BenČ¶tigte Teile/Werkzeuge (optional, eine Zeile je Eintrag)</label>
+        <textarea id="parts_tools" name="parts_tools" rows="2"></textarea>
+
+        <label class="field-label" for="safety_note">Sicherheitshinweis (optional)</label>
+        <textarea id="safety_note" name="safety_note" rows="2"></textarea>
+
+        <div class="form-actions">
+          <button class="btn primary" type="submit">LČ©sung einsenden</button>
+          <a class="btn" href="{{ url_for('index') }}">Abbrechen</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</body>
+</html>

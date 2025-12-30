@@ -11,6 +11,20 @@
     <header class="page-header">
       <h1>Kran-Doc. (Beta.Vers:1.2 12/25)</h1>
       <p>Dein Kran-Doktor: Fehlercodes prüfen, BMK-Infos sehen, Ort und Geber finden.</p>
+    <div class="actions-grid">
+      {% if current_user %}
+        {% if is_admin %}
+          <a class="btn" href="{{ url_for('admin_dashboard') }}">Admin</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('account_logout') }}">
+          <button class="btn" type="submit">Logout</button>
+        </form>
+      {% else %}
+        <a class="btn" href="{{ url_for('account_login') }}">Login</a>
+        <a class="btn" href="{{ url_for('account_register') }}">Registrieren</a>
+      {% endif %}
+    </div>
+
     </header>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -311,6 +325,29 @@
         return false;
       }
 
+      function createCommunityLinkRow(model, errorCode) {
+        if (!model || !errorCode) return null;
+        const row = document.createElement('div');
+        row.className = 'meta-row';
+
+        const l = document.createElement('span');
+        l.className = 'meta-label';
+        l.textContent = 'Community:';
+
+        const v = document.createElement('span');
+        v.className = 'meta-value';
+
+        const link = document.createElement('a');
+        link.className = 'community-link';
+        link.href = '/community/solutions/' + encodeURIComponent(model) + '/' + encodeURIComponent(errorCode);
+        link.textContent = 'Lösungen ansehen';
+        v.appendChild(link);
+
+        row.appendChild(l);
+        row.appendChild(v);
+        return row;
+      }
+
       function createMetaRow(label, value) {
         if (value === undefined || value === null) return null;
         const s = cleanDisplayText(value);
@@ -434,6 +471,8 @@
           if (errorCode && isLikelyErrorCode(errorCode)) {
             const codeRow = createMetaRow('Fehlercode', errorCode);
             if (codeRow) metaBox.appendChild(codeRow);
+            const communityRow = createCommunityLinkRow(model, errorCode);
+            if (communityRow) metaBox.appendChild(communityRow);
           }
           if (bmkCode && isLikelyBmkCode(bmkCode)) {
             const row = document.createElement('div');

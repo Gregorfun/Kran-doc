@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kran-Doc Community - Registrierung</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Kran-Doc Community Registrierung</h1>
+      <p>WČ©hle einen Anzeigenamen oder lass dir automatisch ein Pseudonym geben.</p>
+      <div class="actions-grid">
+        <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
+        <a class="btn" href="{{ url_for('account_login', next=next_param) }}">Ich habe bereits einen Account</a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="card section login-card">
+      <h2>Account anlegen</h2>
+      {% if error %}
+        <p class="status-warn">{{ error }}</p>
+      {% endif %}
+      <form method="post" class="search-form">
+        <input type="hidden" name="next" value="{{ next_param }}">
+        <label class="field-label" for="email">Email</label>
+        <input id="email" name="email" type="email" required>
+
+        <label class="field-label" for="password">Passwort (min. 6 Zeichen)</label>
+        <input id="password" name="password" type="password" required>
+
+        <label class="field-label" for="display_name">Anzeigename (optional)</label>
+        <input id="display_name" name="display_name" type="text" placeholder="z.B. KranMensch">
+        <p class="status-sub">Leer lassen = automatisches Pseudonym (z.B. KranFuchs-4821).</p>
+
+        <label class="field-label" for="real_name">Realname (optional, intern)</label>
+        <input id="real_name" name="real_name" type="text" placeholder="Nur fČ©r Adminsicht">
+
+        <div class="form-actions">
+          <button class="btn primary" type="submit">Registrieren</button>
+          <a class="btn" href="{{ url_for('account_login', next=next_param) }}">Zum Login</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</body>
+</html>

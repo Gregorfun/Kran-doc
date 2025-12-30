@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kran-Doc Community - Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Kran-Doc Community Login</h1>
+      <p>Community-LČ©sungen teilen (nur nach Admin-Freigabe sichtbar).</p>
+      <div class="actions-grid">
+        <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
+        <a class="btn" href="{{ url_for('account_register', next=next_param) }}">Registrieren</a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="card section login-card">
+      <h2>Login</h2>
+      {% if error %}
+        <p class="status-warn">{{ error }}</p>
+      {% endif %}
+      <form method="post" class="search-form">
+        <input type="hidden" name="next" value="{{ next_param }}">
+        <label class="field-label" for="email">Email</label>
+        <input id="email" name="email" type="email" required>
+
+        <label class="field-label" for="password">Passwort</label>
+        <input id="password" name="password" type="password" required>
+
+        <div class="form-actions">
+          <button class="btn primary" type="submit">Einloggen</button>
+          <a class="btn" href="{{ url_for('account_register', next=next_param) }}">Neu registrieren</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</body>
+</html>

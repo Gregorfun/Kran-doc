@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kran-Doc Admin - User</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Admin User Review</h1>
+      <p>Ansicht: {{ status_filter }}</p>
+      <div class="actions-grid">
+        <a class="btn" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+        <a class="btn" href="{{ url_for('admin_users', status='pending') }}">Pending</a>
+        <a class="btn" href="{{ url_for('admin_users', status='approved') }}">Approved</a>
+        <a class="btn" href="{{ url_for('admin_users', status='rejected') }}">Rejected</a>
+        <a class="btn" href="{{ url_for('admin_users', status='all') }}">Alle</a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="card section">
+      {% if not users %}
+        <p class="status-warn">Keine User im aktuellen Filter.</p>
+      {% else %}
+        <table class="parts-table">
+          <thead>
+            <tr>
+              <th>Created</th>
+              <th>Display Name</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+              <tr>
+                <td>{{ u.created_at }}</td>
+                <td>{{ u.display_name }}</td>
+                <td>{{ u.email }}</td>
+                <td>{{ u.status or 'approved' }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('admin_user_approve', user_id=u.user_id) }}">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="text" name="decision_note" placeholder="Notiz (optional)">
+                    <button class="btn" type="submit">Approve</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin_user_reject', user_id=u.user_id) }}">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="text" name="decision_note" placeholder="Begründung" required>
+                    <button class="btn" type="submit">Reject</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>

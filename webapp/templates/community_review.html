@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kran-Doc Community - Admin Review</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Community-Review (Admin)</h1>
+      <p>Freigabe / Ablehnung von Community-Lösungen.</p>
+      <div class="actions-grid">
+        <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
+        <form method="post" action="{{ url_for('account_logout') }}">
+          <button class="btn" type="submit">Logout</button>
+        </form>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="card section">
+      <div class="community-headline">
+        <h2>Pending Lösungen</h2>
+        <span class="community-badge">Nur nach Freigabe sichtbar</span>
+      </div>
+      {% if not pending %}
+        <p class="status-ok">Keine offenen Einsendungen.</p>
+      {% else %}
+        {% for s in pending %}
+          <div class="admin-review-card">
+            <div class="community-title">{{ s.title }}</div>
+            <div class="community-meta">
+              {{ s.model }} · {{ s.error_code }} · von {{ s.created_display_name }} · {{ s.created_at }}
+            </div>
+
+            <form method="post" action="{{ url_for('community_approve', solution_id=s.solution_id) }}">
+              <div class="admin-review-grid">
+                <div>
+                  <label class="field-label" for="model-{{ s.solution_id }}">Modell</label>
+                  <input id="model-{{ s.solution_id }}" name="model" type="text" value="{{ s.model or '' }}">
+                </div>
+                <div>
+                  <label class="field-label" for="code-{{ s.solution_id }}">Fehlercode</label>
+                  <input id="code-{{ s.solution_id }}" name="error_code" type="text" value="{{ s.error_code or '' }}">
+                </div>
+                <div>
+                  <label class="field-label" for="title-{{ s.solution_id }}">Titel</label>
+                  <input id="title-{{ s.solution_id }}" name="title" type="text" value="{{ s.title or '' }}">
+                </div>
+                <div>
+                  <label class="field-label" for="symptom-{{ s.solution_id }}">Symptom</label>
+                  <textarea id="symptom-{{ s.solution_id }}" name="symptom" rows="2">{{ s.symptom or '' }}</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="cause-{{ s.solution_id }}">Ursache</label>
+                  <textarea id="cause-{{ s.solution_id }}" name="cause" rows="2">{{ s.cause or '' }}</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="fix-{{ s.solution_id }}">Lösungsschritte</label>
+                  <textarea id="fix-{{ s.solution_id }}" name="fix_steps" rows="3">{% for step in s.fix_steps or [] %}{{ step }}{% if not loop.last %}&#10;{% endif %}{% endfor %}</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="parts-{{ s.solution_id }}">Teile/Werkzeuge</label>
+                  <textarea id="parts-{{ s.solution_id }}" name="parts_tools" rows="2">{% for item in s.parts_tools or [] %}{{ item }}{% if not loop.last %}&#10;{% endif %}{% endfor %}</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="safety-{{ s.solution_id }}">Sicherheitshinweis</label>
+                  <textarea id="safety-{{ s.solution_id }}" name="safety_note" rows="2">{{ s.safety_note or '' }}</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="decision-{{ s.solution_id }}">Admin-Notiz (optional)</label>
+                  <input id="decision-{{ s.solution_id }}" name="decision_note" type="text" placeholder="Optionaler Hinweis">
+                </div>
+              </div>
+              <div class="admin-review-actions">
+                <button class="btn primary" type="submit">Freigeben</button>
+              </div>
+            </form>
+
+            <form method="post" action="{{ url_for('community_reject', solution_id=s.solution_id) }}" class="admin-review-actions">
+              <label class="field-label" for="reject-{{ s.solution_id }}">Ablehnung (Begründung erforderlich)</label>
+              <input id="reject-{{ s.solution_id }}" name="decision_note" type="text" required placeholder="Warum wird abgelehnt?">
+              <button class="btn danger" type="submit">Ablehnen</button>
+            </form>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </section>
+
+    <section class="card section">
+      <div class="community-headline">
+        <h2>Freigegeben</h2>
+        <span class="community-badge">approved</span>
+      </div>
+      {% if not approved %}
+        <p class="muted">Noch keine freigegebenen Lösungen.</p>
+      {% else %}
+        <div class="community-list">
+          {% for s in approved %}
+            <div class="community-card">
+              <div class="community-title">{{ s.title }}</div>
+              <div class="community-meta">{{ s.model }} · {{ s.error_code }} · {{ s.created_display_name }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="card section">
+      <div class="community-headline">
+        <h2>Abgelehnt</h2>
+        <span class="community-badge">rejected</span>
+      </div>
+      {% if not rejected %}
+        <p class="muted">Keine abgelehnten Lösungen.</p>
+      {% else %}
+        <div class="community-list">
+          {% for s in rejected %}
+            <div class="community-card">
+              <div class="community-title">{{ s.title }}</div>
+              <div class="community-meta">{{ s.model }} · {{ s.error_code }} · {{ s.created_display_name }}</div>
+              {% if s.decision_note %}
+                <div class="community-section"><strong>Begründung:</strong> {{ s.decision_note }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>

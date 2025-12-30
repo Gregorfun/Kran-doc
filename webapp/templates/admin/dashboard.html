@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kran-Doc Admin - Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Admin Dashboard</h1>
+      <p>Übersicht der offenen Freigaben.</p>
+      <div class="actions-grid">
+        <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
+        <a class="btn" href="{{ url_for('admin_users', status='pending') }}">User</a>
+        <a class="btn" href="{{ url_for('admin_solutions', status='pending') }}">Lösungen</a>
+        <form method="post" action="{{ url_for('account_logout') }}">
+          <button class="btn" type="submit">Logout</button>
+        </form>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-messages">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="card section">
+      <div class="status-grid">
+        <div class="status-card">
+          <div class="status-label">Pending User</div>
+          <div class="status-value">{{ pending_users_count }}</div>
+          <div class="status-sub">
+            <a class="btn" href="{{ url_for('admin_users', status='pending') }}">User prüfen</a>
+          </div>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Pending Lösungen</div>
+          <div class="status-value">{{ pending_solutions_count }}</div>
+          <div class="status-sub">
+            <a class="btn" href="{{ url_for('admin_solutions', status='pending') }}">Lösungen prüfen</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

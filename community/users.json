@@ -1,0 +1,58 @@
+[
+  {
+    "user_id": "013d234d50194b23ad26b622a7aadb56",
+    "email": "admin@local",
+    "password_hash": "scrypt:32768:8:1$ZHQn9P2NrSflWTUI$4ec8d2cbf57e7b017fe9e9aa5ac498096d03f2d79ef8e3d9cbfc14a4540d53735f895153a04a4da967d79a1d69909793bf9fc746be0fd1eb3cee07fd7142c049",
+    "role": "admin",
+    "status": "approved",
+    "display_name": "Admin",
+    "display_mode": "custom",
+    "real_name": "",
+    "created_at": "2025-12-30T15:03:16Z",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "decision_note": null
+  },
+  {
+    "user_id": "3d49358395f74ff68457f7c56d3a7ca7",
+    "email": "admin@kran-doc.local",
+    "password_hash": "scrypt:32768:8:1$MniavTcJ5ZgMmCFe$1f763f984305ea86ab72cd4f0d02a83cd4ac0d81f1807e715b28944572331526ac83c88cc290c3b6d3af2fa16124eca8ddaa5f418dc5e04b817ee6058ca21161",
+    "role": "admin",
+    "status": "approved",
+    "display_name": "Admin",
+    "display_mode": "custom",
+    "real_name": "",
+    "created_at": "2025-12-30T19:59:54Z",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "decision_note": null
+  },
+  {
+    "user_id": "de60db76eda54fabae4da6411ae26a49",
+    "email": "gregorfun@gmx.de",
+    "password_hash": "scrypt:32768:8:1$2EtnisfJ0kllU1ng$7fdead84b7ba7a7c11fef2b9f6f26dcd7b0c5ef5130816326c9b991dffb0d26f9d0fb95ff1116e6ec5b7b64c94bfbebf66ac725077380d260278eab3133935b0",
+    "role": "user",
+    "status": "approved",
+    "display_name": "KranFuchs-5114",
+    "display_mode": "auto",
+    "real_name": "",
+    "created_at": "2025-12-30T20:03:08Z",
+    "reviewed_by": "3d49358395f74ff68457f7c56d3a7ca7",
+    "reviewed_at": "2025-12-30T20:04:57Z",
+    "decision_note": null
+  },
+  {
+    "user_id": "77b35d3f151b44a48ee572cebf7fe051",
+    "email": "gregor.machuletz@gmx.de",
+    "password_hash": "scrypt:32768:8:1$XCTfKOf0K1eSP1Ex$3c93568201009133f7daba8c1ae278a10cdb3b7b21cd0ae793b5bfdb872137bb4cad028a60843641200e8df2d3b6519e2d89ca7bb923b14d33bea028f50998b4",
+    "role": "admin",
+    "status": "approved",
+    "display_name": "Admin",
+    "display_mode": "custom",
+    "real_name": "",
+    "created_at": "2025-12-30T20:15:14Z",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "decision_note": null
+  }
+]
