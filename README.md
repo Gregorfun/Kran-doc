@@ -1,11 +1,11 @@
 # PDFDoc / Kran-Tools
 
 ## Aktuelle Version
-**v0.2.0**
+**v0.3.0**
 
 ## Letzte Ã„nderungen
-- Feat: Webapp UI/Antworten verbessert
-- Feat: Semantischer Index/Embedding-Build überarbeitet
+- Feat: Community Lösungen + Review Flow
+- Feat: Admin- und Account-Login/Register UI
 
 ## Ordnerstruktur
 
