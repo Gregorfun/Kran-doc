@@ -535,6 +535,15 @@ def normalize_lsb_key(value: Any) -> Optional[str]:
 
     return None
 
+def _full_lsb_address(err: Dict[str, Any]) -> Optional[str]:
+    raw = err.get("raw_block") or ""
+    if not raw:
+        return None
+    first = str(raw).splitlines()[0].strip()
+    if not first:
+        return None
+    return first
+
 def lsb_keys_from_bmk_lsb(raw: Any) -> List[str]:
     if raw is None:
         return []
@@ -1092,6 +1101,7 @@ def _direct_lec_results_for_codes(codes: List[str], model_hint: Optional[str], t
         err = lec_index.get(c.upper())
         if not err:
             continue
+        lsb_address = _full_lsb_address(err) or err.get("lsb_address") or err.get("lsb")
         out.append(
             {
                 "model": model_hint,
@@ -1106,7 +1116,7 @@ def _direct_lec_results_for_codes(codes: List[str], model_hint: Optional[str], t
                     "code": c.upper(),
                     "short_text": err.get("short_text"),
                     "long_text": err.get("long_text"),
-                    "lsb_address": err.get("lsb_address") or err.get("lsb"),
+                    "lsb_address": lsb_address,
                 },
             }
         )
@@ -1138,6 +1148,11 @@ def _enrich_results_with_bmk(results: List[Dict[str, Any]], model_hint: Optional
         meta.setdefault("short_text", err.get("short_text"))
         meta.setdefault("long_text", err.get("long_text"))
         meta.setdefault("lsb_address", err.get("lsb_address") or err.get("lsb"))
+        full_lsb = _full_lsb_address(err)
+        if full_lsb:
+            current_lsb = meta.get("lsb_address")
+            if not current_lsb or (full_lsb.startswith(str(current_lsb)) and len(str(current_lsb)) < len(full_lsb)):
+                meta["lsb_address"] = full_lsb
 
         lsb_key = _extract_lsb_key_from_error_data(err)
         if not lsb_key:
