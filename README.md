@@ -1,11 +1,11 @@
 # PDFDoc / Kran-Tools
 
 ## Aktuelle Version
-**v0.3.0**
+**v0.4.0**
 
 ## Letzte Ã„nderungen
-- Feat: Community Lösungen + Review Flow
-- Feat: Admin- und Account-Login/Register UI
+- Feat: <Feature 1>
+- Feat: <Feature 2>
 
 ## Ordnerstruktur
 
