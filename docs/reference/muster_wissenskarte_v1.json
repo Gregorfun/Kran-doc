@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Referenz-Wissenskarte (Source of Truth) für Parser, UI, Embeddings, Community",
+  "notes": [
+    "Alle Wissenseinträge (LEC/BMK/SPL/Q&A/Manual/Community) müssen in dieses Schema passen.",
+    "community nutzt dasselbe Schema, nur confidence=community und source.type=community.",
+    "IDs müssen stabil, eindeutig und referenzierbar sein."
+  ],
+  "chunks": [
+    {
+      "id": "lec_LTM1090-4.2_1A486C",
+      "type": "lec",
+      "model": "LTM1090-4.2",
+      "title": "Fehlercode 1A486C – Wegsensor Ausleger",
+      "short_description": "Positionssignal des Wegsensors am Teleskopausleger unplausibel",
+      "text": "Der Fehlercode 1A486C wird ausgelöst, wenn das Steuergerät kein plausibles Signal vom Wegsensor des Teleskopauslegers erhält. Ursache sind häufig Kabelbrüche, verschmutzte Steckverbindungen oder ein defekter Sensor.",
+      "severity": "kritisch",
+      "symptoms": [
+        "Ausleger fährt nicht aus",
+        "Bewegung wird sofort gestoppt",
+        "Fehler tritt nach Regen oder Wäsche auf"
+      ],
+      "likely_causes": [
+        "Steckverbindung korrodiert",
+        "Kabelbruch im Ausleger",
+        "Sensor defekt oder verstellt"
+      ],
+      "checks": [
+        "Steckverbindung am Sensor prüfen",
+        "Kabel auf Scheuerstellen kontrollieren",
+        "Sensorposition laut Handbuch prüfen"
+      ],
+      "bmk_refs": ["S304"],
+      "lsb_address": "LSB 12",
+      "related_chunks": [
+        "bmk_LTM1090-4.2_S304",
+        "qa_LTM1090-4.2_ausleger_faehrt_nicht"
+      ],
+      "source": {
+        "type": "pdf",
+        "file": "LEC_LTM1090-4.2.pdf"
+      },
+      "confidence": "starterpack",
+      "tags": ["lec", "sensor", "ausleger", "positionssignal"]
+    },
+    {
+      "id": "bmk_LTM1090-4.2_S304",
+      "type": "bmk",
+      "model": "LTM1090-4.2",
+      "title": "Wegsensor Teleskopausleger",
+      "short_description": "Bauteil: Wegsensor zur Positionsrückmeldung Ausleger",
+      "text": "Der Wegsensor S304 erfasst die Position des Teleskopauslegers und liefert das Signal an das LICCON-Steuergerät.",
+      "location_hint": "Auslegerbasis, rechte Seite",
+      "related_chunks": ["lec_LTM1090-4.2_1A486C"],
+      "source": {
+        "type": "pdf",
+        "file": "BMK_LTM1090-4.2.pdf"
+      },
+      "confidence": "starterpack",
+      "tags": ["bmk", "sensor", "ausleger"]
+    },
+    {
+      "id": "qa_LTM1090-4.2_ausleger_faehrt_nicht",
+      "type": "qa",
+      "model": "LTM1090-4.2",
+      "title": "Ausleger fährt nicht – trotz freigegebener Steuerung",
+      "question": "Der Ausleger reagiert nicht, obwohl keine Sperre aktiv ist. Woran kann das liegen?",
+      "answer": "Häufig liegt ein fehlerhaftes Positionssignal eines Wegsensors vor. Besonders nach Regen oder Hochdruckwäsche treten Kontaktprobleme auf.",
+      "related_chunks": [
+        "lec_LTM1090-4.2_1A486C",
+        "bmk_LTM1090-4.2_S304"
+      ],
+      "source": {
+        "type": "starterpack",
+        "file": "docs/reference/muster_wissenskarte_v1.json"
+      },
+      "confidence": "starterpack",
+      "tags": ["qa", "praxis", "ausleger"]
+    }
+  ]
+}
