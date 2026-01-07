@@ -1,5 +1,9 @@
 # Changelog
 ## [Unreleased]
+## [0.5.0] - 2026-01-07
+- Feat: <Feature 1>
+- Feat: <Feature 2>
+
 ## [0.4.0] - 2026-01-04
 - Feat: <Feature 1>
 - Feat: <Feature 2>
