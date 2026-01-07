@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kran-Doc - Chunk Detail</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.4">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <div class="actions-grid">
+        <a class="btn" href="{{ url_for('index') }}">Zur Suche</a>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <section class="card section chunk-detail-card">
+        {% if not chunk %}
+          <h2>Chunk nicht gefunden</h2>
+          <p class="muted">Kein Treffer fuer ID {{ chunk_id }}.</p>
+        {% else %}
+          <div class="chunk-detail-header">
+            <div class="chunk-detail-title">{{ chunk.title or "Ohne Titel" }}</div>
+            {% set confidence = (chunk.confidence or "") %}
+            {% if confidence == "starterpack" %}
+              <span class="chunk-badge badge-starterpack">Grundwissen</span>
+            {% elif confidence == "community" %}
+              <span class="chunk-badge badge-community">Community</span>
+            {% else %}
+              <span class="chunk-badge badge-import">Import</span>
+            {% endif %}
+          </div>
+          <div class="chunk-meta-line">
+            {% set meta_parts = [] %}
+            {% if chunk.model %}{% set _ = meta_parts.append(chunk.model) %}{% endif %}
+            {% if chunk.type %}{% set _ = meta_parts.append(chunk.type) %}{% endif %}
+            {{ meta_parts|join(" / ") if meta_parts else "Unbekannt" }}
+          </div>
+          <div class="chunk-id">ID: {{ chunk.id }}</div>
+
+          {% if chunk.type == "qa" %}
+            <div class="chunk-block">
+              <div class="chunk-block-title">Frage</div>
+              <div class="chunk-block-body">{{ chunk.question }}</div>
+            </div>
+            <div class="chunk-block">
+              <div class="chunk-block-title">Antwort</div>
+              <div class="chunk-block-body">{{ chunk.answer }}</div>
+            </div>
+          {% else %}
+            {% if chunk.short_description %}
+              <div class="chunk-summary">{{ chunk.short_description }}</div>
+            {% endif %}
+            {% if chunk.text %}
+              <div class="chunk-text">{{ chunk.text }}</div>
+            {% endif %}
+          {% endif %}
+
+          {% if chunk.symptoms %}
+            <div class="chunk-list">
+              <div class="chunk-list-title">Symptome</div>
+              <ul>
+                {% for item in chunk.symptoms %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+
+          {% if chunk.likely_causes %}
+            <div class="chunk-list">
+              <div class="chunk-list-title">Wahrscheinliche Ursachen</div>
+              <ul>
+                {% for item in chunk.likely_causes %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+
+          {% if chunk.checks %}
+            <div class="chunk-list">
+              <div class="chunk-list-title">Checks</div>
+              <ul>
+                {% for item in chunk.checks %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+
+          {% if chunk.related_chunks %}
+            <div class="chunk-list">
+              <div class="chunk-list-title">Verknuepfte Chunks</div>
+              <ul>
+                {% for cid in chunk.related_chunks %}
+                  <li><a class="chunk-link" href="{{ url_for('chunk_detail', chunk_id=cid) }}">{{ cid }}</a></li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        {% endif %}
+      </section>
+    </main>
+  </div>
+</body>
+</html>

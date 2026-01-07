@@ -496,6 +496,152 @@ def looks_like_bmk_code_query(q: str) -> bool:
 
 
 # ============================================================
+# Auto-BMK (global_bmk_index.json)
+# ============================================================
+
+_AUTO_BMK_CODE_RE = re.compile(r"\b([SAYE]\d{2,4})\b", re.IGNORECASE)
+
+@lru_cache(maxsize=1)
+def _load_global_bmk_index() -> Dict[tuple[str, str], Dict[str, Any]]:
+    path = BASE_DIR / "output" / "reports" / "global_bmk_index.json"
+    if not path.exists():
+        return {}
+    try:
+        data = _load_json(str(path))
+    except Exception:
+        return {}
+
+    bmks = data.get("bmks") if isinstance(data, dict) else None
+    lookup: Dict[tuple[str, str], Dict[str, Any]] = {}
+
+    if isinstance(bmks, list):
+        for entry in bmks:
+            if not isinstance(entry, dict):
+                continue
+            model = (entry.get("model") or "").strip()
+            bmk = (entry.get("bmk") or "").strip()
+            if not model or not bmk:
+                continue
+            key = (model.upper(), bmk.upper())
+            lookup[key] = entry
+
+    return lookup
+
+def get_bmk_entry(model: str, bmk_code: str) -> Optional[Dict[str, Any]]:
+    model_key = (model or "").strip().upper()
+    bmk_key = (bmk_code or "").strip().upper()
+    if not model_key or not bmk_key:
+        return None
+    lookup = _load_global_bmk_index()
+    return lookup.get((model_key, bmk_key))
+
+def _extract_bmk_hits_from_related_chunks(related_chunks: List[str]) -> List[Dict[str, str]]:
+    hits: List[Dict[str, str]] = []
+    seen: set[str] = set()
+    for item in related_chunks or []:
+        if not item:
+            continue
+        s = str(item)
+        for m in re.finditer(r"\bbmk_([^_]+)_([A-Z]\d{2,4})\b", s, re.IGNORECASE):
+            code = m.group(2).upper()
+            if code in seen:
+                continue
+            seen.add(code)
+            hits.append({"code": code, "model": (m.group(1) or "").strip()})
+    return hits
+
+def _extract_bmk_codes_from_text(text: str) -> List[str]:
+    if not text:
+        return []
+    codes: List[str] = []
+    seen: set[str] = set()
+    for m in _AUTO_BMK_CODE_RE.finditer(text):
+        code = m.group(1).upper()
+        if code in seen:
+            continue
+        seen.add(code)
+        codes.append(code)
+    return codes
+
+def _format_auto_bmk_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "model": entry.get("model"),
+        "bmk": entry.get("bmk"),
+        "title": entry.get("title"),
+        "area": entry.get("area"),
+        "group": entry.get("group"),
+    }
+
+def _collect_auto_bmks_for_result(result: Dict[str, Any], model_hint: Optional[str] = None) -> List[Dict[str, Any]]:
+    if not isinstance(result, dict):
+        return []
+    meta = result.get("metadata") or {}
+    source_type = (result.get("source_type") or meta.get("source_type") or "").lower().strip()
+    if source_type != "lec_error":
+        return []
+
+    model = _normalize_model(result.get("model") or meta.get("model") or (model_hint or ""))
+    if not model or model.lower() in ("all", "alle", "*"):
+        return []
+
+    related_raw = _first_value(result, meta, ["related_chunks", "related"])
+    related_chunks = _normalize_list_field(related_raw)
+    related_hits = _extract_bmk_hits_from_related_chunks(related_chunks) if related_chunks else []
+
+    codes: List[str] = []
+    if related_hits:
+        for hit in related_hits:
+            codes.append(hit["code"])
+    else:
+        text_parts = [
+            result.get("text"),
+            meta.get("text"),
+            meta.get("short_text"),
+            meta.get("long_text"),
+            result.get("short_description"),
+            meta.get("short_description"),
+            result.get("title"),
+            meta.get("title"),
+        ]
+        text = " ".join([str(v) for v in text_parts if v])
+        codes = _extract_bmk_codes_from_text(text)
+
+    if not codes:
+        return []
+
+    entries: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for code in codes:
+        code_key = code.upper()
+        if code_key in seen:
+            continue
+        seen.add(code_key)
+        entry = get_bmk_entry(model, code_key)
+        if entry:
+            entries.append(_format_auto_bmk_entry(entry))
+        if len(entries) >= 5:
+            break
+
+    return entries
+
+def _attach_auto_bmks(results: List[Dict[str, Any]], model_hint: Optional[str] = None) -> List[Dict[str, Any]]:
+    if not results:
+        return results
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        auto_bmks = _collect_auto_bmks_for_result(r, model_hint=model_hint)
+        if auto_bmks:
+            r["auto_bmks"] = auto_bmks
+            meta = r.get("metadata")
+            if isinstance(meta, dict):
+                meta["auto_bmks"] = auto_bmks
+                r["metadata"] = meta
+    return results
+
+
+# ============================================================
 # LSB Normalisierung / Parsing
 # ============================================================
 
@@ -797,6 +943,227 @@ def _dedupe_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 # --- NEW ---
+def _normalize_list_field(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        cleaned = [str(v).strip() for v in value if str(v).strip()]
+        return cleaned
+    if isinstance(value, str):
+        parts = [p.strip() for p in re.split(r"[\n;]+", value) if p.strip()]
+        if len(parts) == 1 and "," in value:
+            parts = [p.strip() for p in value.split(",") if p.strip()]
+        return parts
+    return [str(value).strip()] if str(value).strip() else []
+
+# --- NEW ---
+def _first_value(result: Dict[str, Any], meta: Dict[str, Any], keys: List[str]) -> Optional[Any]:
+    for k in keys:
+        v = result.get(k)
+        if v is not None and v != "":
+            return v
+        v = meta.get(k)
+        if v is not None and v != "":
+            return v
+    return None
+
+# --- NEW ---
+def _normalize_chunk_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+    meta = result.get("metadata")
+    if not isinstance(meta, dict):
+        meta = {}
+    result["metadata"] = meta
+
+    id_value = _first_value(result, meta, ["id", "_id"])
+    if id_value is not None:
+        result.setdefault("id", id_value)
+        meta.setdefault("id", id_value)
+
+    fields = {
+        "type": ["type"],
+        "model": ["model", "modell"],
+        "title": ["title"],
+        "short_description": ["short_description", "short_desc", "short_text"],
+        "question": ["question"],
+        "answer": ["answer"],
+        "confidence": ["confidence"],
+        "tags": ["tags"],
+        "source": ["source"],
+        "text": ["text", "chunk"],
+    }
+    for field, keys in fields.items():
+        value = _first_value(result, meta, keys)
+        if value is not None and value != "":
+            result.setdefault(field, value)
+            meta.setdefault(field, value)
+
+    list_fields = {
+        "related_chunks": ["related_chunks", "related"],
+        "symptoms": ["symptoms"],
+        "likely_causes": ["likely_causes", "causes"],
+        "checks": ["checks"],
+    }
+    for field, keys in list_fields.items():
+        value = _first_value(result, meta, keys)
+        items = _normalize_list_field(value)
+        if items:
+            result.setdefault(field, items)
+            meta.setdefault(field, items)
+
+    return result
+
+# --- NEW ---
+def _normalize_chunk_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not results:
+        return results
+    for r in results:
+        if isinstance(r, dict):
+            _normalize_chunk_result(r)
+    return results
+
+# --- NEW ---
+def _count_approved_solutions(model: str, error_code: str) -> int:
+    if not error_code:
+        return 0
+    model_norm = _normalize_model(model or "")
+    code_norm = _normalize_error_code(error_code)
+    return len(_filter_approved_solutions(model_norm, code_norm))
+
+# --- NEW ---
+def _attach_solution_counts(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not results:
+        return results
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        meta = r.get("metadata") or {}
+        source_type = (r.get("source_type") or meta.get("source_type") or "").lower().strip()
+        if source_type != "lec_error":
+            continue
+        model = r.get("model") or meta.get("model") or ""
+        code = meta.get("error_code") or meta.get("code") or ""
+        if not code:
+            continue
+        count = _count_approved_solutions(model, str(code))
+        r["solution_count"] = count
+        if isinstance(meta, dict):
+            meta["solution_count"] = count
+            r["metadata"] = meta
+    return results
+
+# --- NEW ---
+def _first_non_empty_str(*values: Any) -> str:
+    for v in values:
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return ""
+
+# --- NEW ---
+def _attach_lec_display_text(results: List[Dict[str, Any]], model_hint: Optional[str] = None) -> List[Dict[str, Any]]:
+    if not results:
+        return results
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        meta = r.get("metadata") or {}
+        source_type = (r.get("source_type") or meta.get("source_type") or "").lower().strip()
+        if source_type != "lec_error":
+            continue
+        model = _normalize_model(r.get("model") or meta.get("model") or (model_hint or ""))
+        if not model:
+            continue
+        code = meta.get("error_code") or meta.get("code") or r.get("error_code") or r.get("code")
+        if not code:
+            continue
+        err = _load_lec_index_for_model(model).get(str(code).upper())
+        if not err:
+            continue
+        short_display = _first_non_empty_str(
+            err.get("short_text"),
+            err.get("summary"),
+            err.get("title"),
+            err.get("short_description"),
+        )
+        long_display = _first_non_empty_str(
+            err.get("long_text"),
+            err.get("description"),
+            err.get("reaction"),
+            err.get("remedy"),
+        )
+        if short_display:
+            meta.setdefault("short_text_display", short_display)
+        if long_display:
+            meta.setdefault("long_text_display", long_display)
+        r["metadata"] = meta
+    return results
+
+# --- NEW ---
+@lru_cache(maxsize=1)
+def _load_embeddings_meta_data() -> Any:
+    path = BASE_DIR / "output" / "embeddings" / "embeddings_meta.json"
+    if not path.exists():
+        return {}
+    try:
+        return _load_json(str(path))
+    except Exception:
+        return {}
+
+# --- NEW ---
+def _chunk_from_meta_entry(entry: Dict[str, Any], text: str) -> Optional[Dict[str, Any]]:
+    if not isinstance(entry, dict):
+        return None
+    raw_meta = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else entry
+    meta = dict(raw_meta) if isinstance(raw_meta, dict) else {}
+    chunk_id = entry.get("id") or meta.get("id") or meta.get("_id")
+
+    chunk = dict(meta)
+    if chunk_id is not None:
+        chunk["id"] = chunk_id
+    if text and not chunk.get("text"):
+        chunk["text"] = text
+    if entry.get("source_type") and not chunk.get("source_type"):
+        chunk["source_type"] = entry.get("source_type")
+    return chunk
+
+# --- NEW ---
+def _find_chunk_by_id(chunk_id: str) -> Optional[Dict[str, Any]]:
+    if not chunk_id:
+        return None
+    data = _load_embeddings_meta_data()
+    if not data:
+        return None
+
+    def _matches(value: Any) -> bool:
+        return value is not None and str(value) == str(chunk_id)
+
+    if isinstance(data, dict) and "texts" in data:
+        texts = data.get("texts") or []
+        metas = data.get("metadatas") or data.get("metas") or []
+        if not isinstance(metas, list):
+            return None
+        for idx, entry in enumerate(metas):
+            text = texts[idx] if idx < len(texts) else ""
+            chunk = _chunk_from_meta_entry(entry, text)
+            if chunk and _matches(chunk.get("id")):
+                return chunk
+        return None
+
+    if isinstance(data, list):
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            text = entry.get("text") or entry.get("chunk") or ""
+            chunk = _chunk_from_meta_entry(entry, text)
+            if chunk and _matches(chunk.get("id")):
+                return chunk
+    return None
+
+# --- NEW ---
 def _search_general(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
     if search_similar is None:
         return []
@@ -919,6 +1286,22 @@ def _load_lec_index_for_model(model: str) -> Dict[str, Dict[str, Any]]:
             continue
         idx[code.upper()] = e
     return idx
+
+
+@lru_cache(maxsize=64)
+def _load_spl_references_for_model(model: str) -> Dict[str, Any]:
+    mdir = _model_dir(model)
+    p = _find_first_existing([
+        mdir / f"{model}_SPL_REFERENCES.json",
+        mdir / f"{model}_SPL_REFERENCES",
+    ])
+    if not p:
+        return {}
+    try:
+        data = _load_json(str(p))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 @lru_cache(maxsize=64)
@@ -1376,6 +1759,87 @@ def _bmk_search_all_models(query: str, model_hint: Optional[str], limit: int = 1
     return [best] if best else []
 
 
+_DIAG_BMK_RE = re.compile(r"^(?:[AXSFBY]\d{1,4}(?:\.[A-Z0-9]{1,6})?)$", re.IGNORECASE)
+
+
+def _diagnosis_collect_related(tokens: List[str], target: str) -> Dict[str, List[str]]:
+    groups = {"connectors": [], "fuses": [], "controllers": [], "sensors": []}
+    seen = set()
+    for raw in tokens:
+        t = (raw or "").strip().upper()
+        if not t or t == target:
+            continue
+        if t in seen:
+            continue
+        if not _DIAG_BMK_RE.fullmatch(t):
+            continue
+        seen.add(t)
+        if t.startswith("X"):
+            groups["connectors"].append(t)
+        elif t.startswith("F"):
+            groups["fuses"].append(t)
+        elif t.startswith("A"):
+            groups["controllers"].append(t)
+        elif t.startswith("S"):
+            groups["sensors"].append(t)
+    for k in groups:
+        groups[k] = sorted(groups[k])[:12]
+    return groups
+
+
+def build_diagnosis_path(model: str, bmk_code: str) -> Dict[str, Any]:
+    target = (bmk_code or "").strip().upper()
+    if not target or not _DIAG_BMK_RE.fullmatch(target):
+        return {}
+
+    spl = _load_spl_references_for_model(model)
+    spl_pages = spl.get("spl_pages") if isinstance(spl, dict) else None
+    if not isinstance(spl_pages, list):
+        spl_pages = []
+
+    relevant_pages: List[Dict[str, Any]] = []
+    related_tokens: List[str] = []
+    for page in spl_pages:
+        if not isinstance(page, dict):
+            continue
+        tokens = page.get("tokens") or []
+        tokens_norm = page.get("tokens_norm") or []
+        hay_tokens = {str(t).upper() for t in tokens if t}
+        hay_tokens_norm = {str(t).upper() for t in tokens_norm if t}
+        text = page.get("text") or ""
+        if target not in hay_tokens and target not in hay_tokens_norm and target not in text.upper():
+            continue
+
+        lines = []
+        for ln in str(text).splitlines():
+            if target in ln.upper():
+                lines.append(ln.strip())
+            if len(lines) >= 4:
+                break
+
+        relevant_pages.append(
+            {
+                "page": page.get("page"),
+                "lines": lines,
+            }
+        )
+        related_tokens.extend([str(t) for t in tokens])
+
+    related = _diagnosis_collect_related(related_tokens, target)
+
+    lec_idx = _load_lec_index_for_model(model)
+    lec_hint = "Weitere Hinweise in der LEC-Fehlerliste pruefen." if lec_idx else ""
+    knowledge_hint = "Details im Schaltplan pruefen; keine Pin-Zuordnung garantiert."
+
+    return {
+        "bmk": target,
+        "spl_refs": relevant_pages,
+        "related_bmks": related,
+        "notes": [knowledge_hint],
+        "hints": [h for h in [lec_hint] if h],
+    }
+
+
 # ============================================================
 # Systemstatus
 # ============================================================
@@ -1581,7 +2045,35 @@ def logout():
 @app.route("/", methods=["GET"])
 def index():
     ss = compute_system_status()
-    return render_template("index.html", system_status=ss, embedding_index_available=ss.get("embedding_index_available"))
+    bmk_query = (request.args.get("bmk_query") or "").strip()
+    bmk_model = (request.args.get("bmk_model") or "").strip()
+    bmk_autorun = (request.args.get("bmk_autorun") or "").strip() == "1"
+    initial_bmk_results: List[Dict[str, Any]] = []
+    initial_bmk_status = ""
+    initial_bmk_status_type = ""
+    if bmk_autorun and bmk_query and bmk_model:
+        initial_bmk_results = _bmk_search_all_models(query=bmk_query, model_hint=bmk_model, limit=1)
+        initial_bmk_status = f"Treffer: {len(initial_bmk_results)}"
+        initial_bmk_status_type = "ok"
+        if not initial_bmk_results:
+            initial_bmk_status = "Keine Treffer gefunden."
+            initial_bmk_status_type = "error"
+    return render_template(
+        "index.html",
+        system_status=ss,
+        embedding_index_available=ss.get("embedding_index_available"),
+        initial_bmk_results=initial_bmk_results,
+        initial_bmk_status=initial_bmk_status,
+        initial_bmk_status_type=initial_bmk_status_type,
+    )
+
+@app.route("/chunk/<chunk_id>", methods=["GET"])
+def chunk_detail(chunk_id: str):
+    chunk = _find_chunk_by_id(chunk_id)
+    if chunk:
+        chunk = _normalize_chunk_result(chunk)
+        return render_template("chunk_detail.html", chunk=chunk, chunk_id=chunk_id)
+    return render_template("chunk_detail.html", chunk=None, chunk_id=chunk_id), 404
 
 @app.route("/run/pipeline")
 def run_pipeline():
@@ -2006,6 +2498,10 @@ def api_search():
         results = _enrich_results_with_bmk(results, model_hint=model)
         results = _attach_explain(results, model)
         results = _attach_traffic_light(results)
+        results = _normalize_chunk_results(results)
+        results = _attach_lec_display_text(results, model_hint=model)
+        results = _attach_auto_bmks(results, model_hint=model)
+        results = _attach_solution_counts(results)
         general_results: List[Dict[str, Any]] = []
         if source_mode == "combo":
             general_results = _search_general(question, top_k=top_k)
@@ -2013,6 +2509,7 @@ def api_search():
             general_results = _attach_explain(general_results, model)
             general_results = _attach_traffic_light(general_results)
             general_results = _dedupe_results(general_results)
+            general_results = _normalize_chunk_results(general_results)
         print(f"[SEARCH] q={question!r} model={model!r} source_type_filter={source_mode!r} results={len(results)} general={len(general_results)}")
         return jsonify({"ok": True, "results": results, "general_results": general_results})
 
@@ -2046,11 +2543,16 @@ def api_search():
         results = _enrich_results_with_bmk(results, model_hint=model)
         results = _attach_explain(results, model)
         results = _attach_traffic_light(results)
+        results = _normalize_chunk_results(results)
+        results = _attach_lec_display_text(results, model_hint=model)
+        results = _attach_auto_bmks(results, model_hint=model)
+        results = _attach_solution_counts(results)
     if general_results:
         print(f"[GENERAL] returned {len(general_results)} items")
         general_results = _attach_explain(general_results, model)
         general_results = _attach_traffic_light(general_results)
         general_results = _dedupe_results(general_results)
+        general_results = _normalize_chunk_results(general_results)
     print(f"[SEARCH] q={question!r} model={model!r} source_type_filter={source_mode!r} results={len(results)} general={len(general_results)}")
     return jsonify({"ok": True, "results": results, "general_results": general_results})
 
@@ -2071,7 +2573,21 @@ def api_bmk_search():
         return jsonify({"ok": False, "error": "Bitte ein Modell auswählen"}), 400
 
     results = _bmk_search_all_models(query=query, model_hint=model, limit=1)
-    return jsonify({"ok": True, "results": results, "lang_mode": "de-only-heuristic", "result_mode": "single"})
+    bmk_code = ""
+    if results:
+        bmk_code = (results[0].get("bmk") or "").strip()
+    if not bmk_code and looks_like_bmk_code_query(query):
+        bmk_code = query.strip().upper()
+    diagnosis = build_diagnosis_path(model, bmk_code) if bmk_code else {}
+    return jsonify(
+        {
+            "ok": True,
+            "results": results,
+            "lang_mode": "de-only-heuristic",
+            "result_mode": "single",
+            "diagnosis_path": diagnosis,
+        }
+    )
 
 @app.route("/api/ersatzteile/search", methods=["POST"])
 def api_ersatzteile_search():

@@ -31,11 +31,20 @@ class PDFDocConfig:
     input_pdf_dir: str = "input/pdf"
     models_dir: str = "output/models"
     reports_dir: str = "output/reports"
+    models_root: str = "input/Liebherr/models"
 
     # OCR / Tesseract
     tesseract_cmd: Optional[str] = None
     ocr_enabled: bool = True
     ocr_lang: str = "deu+eng"
+
+    # SPL parser options
+    spl_ocr_only_if_gibberish: bool = True
+    spl_ocr_max_pages: int = 0
+    spl_page_start: int = 0
+    spl_page_end: int = 0
+    spl_auto_ocr_sample_pages: int = 10
+    spl_auto_ocr_threshold: float = 0.6
 
     # Text-Proben (Wissensmodul)
     max_sample_pages: int = 3

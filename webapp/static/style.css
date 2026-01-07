@@ -304,6 +304,56 @@ select:focus {
   margin-bottom: 6px;
 }
 
+.auto-bmk-box {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed rgba(129, 140, 248, 0.45);
+  background: rgba(30, 41, 59, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auto-bmk-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #a5b4fc;
+}
+
+.auto-bmk-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.auto-bmk-row + .auto-bmk-row {
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.auto-bmk-label {
+  font-size: 0.85rem;
+  color: #e5e7eb;
+}
+
+.auto-bmk-meta {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.auto-bmk-link {
+  font-size: 0.75rem;
+  color: #93c5fd;
+  text-decoration: underline;
+  width: fit-content;
+}
+
+.auto-bmk-link:hover {
+  color: #e0f2fe;
+}
+
 .meta-row {
   display: flex;
   gap: 4px;
@@ -329,6 +379,156 @@ select:focus {
   font-size: 0.8rem;
   color: #d1d5db;
   white-space: pre-wrap;
+}
+
+/* Chunk Cards */
+.chunk-card {
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.chunk-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chunk-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.chunk-title-link {
+  color: #e5ecff;
+  text-decoration: none;
+}
+
+.chunk-title-link:hover {
+  text-decoration: underline;
+}
+
+.chunk-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.badge-starterpack {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.badge-community {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.badge-import {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.45);
+}
+
+.chunk-meta-line {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.chunk-id {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.chunk-summary {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #d1d5db;
+  white-space: pre-wrap;
+}
+
+.chunk-links {
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+}
+
+.chunk-link {
+  color: #93c5fd;
+  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
+.chunk-link:hover {
+  color: #e0f2fe;
+}
+
+/* Chunk Detail */
+.chunk-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chunk-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chunk-detail-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.chunk-block {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(8, 12, 28, 0.7);
+}
+
+.chunk-block-title {
+  font-size: 0.85rem;
+  color: #a5b4fc;
+  margin-bottom: 4px;
+}
+
+.chunk-block-body {
+  font-size: 0.9rem;
+  color: #e5e7eb;
+  white-space: pre-wrap;
+}
+
+.chunk-text {
+  font-size: 0.9rem;
+  color: #e5e7eb;
+  white-space: pre-wrap;
+}
+
+.chunk-list-title {
+  font-size: 0.85rem;
+  color: #a5b4fc;
+  margin-bottom: 4px;
+}
+
+.chunk-list ul {
+  margin: 4px 0 0 16px;
+  padding: 0;
+}
+
+.chunk-list li {
+  margin: 2px 0;
 }
 
 /* Ersatzteile Tabelle */

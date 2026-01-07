@@ -127,7 +127,7 @@
       </section>
 
       <!-- 2) BMK Suche -->
-      <section class="card section">
+      <section class="card section" id="bmk">
         <h2>🔵 BMK / Bauteil suchen</h2>
         <p class="status-sub">
           Suche direkt nach BMK-Code (z.B. <code>A81</code>, <code>S987</code>) oder nach Begriffen (z.B. „Tastatureinheit“).
@@ -209,6 +209,9 @@
 
   <script>
     (function() {
+      const INITIAL_BMK_RESULTS = {{ (initial_bmk_results if initial_bmk_results is defined else []) | tojson }};
+      const INITIAL_BMK_STATUS = {{ (initial_bmk_status if initial_bmk_status is defined else "") | tojson }};
+      const INITIAL_BMK_STATUS_TYPE = {{ (initial_bmk_status_type if initial_bmk_status_type is defined else "") | tojson }};
       function setStatus(el, msg, type) {
         el.textContent = msg;
         el.className = 'search-status ' + (type || '');
@@ -325,7 +328,7 @@
         return false;
       }
 
-      function createCommunityLinkRow(model, errorCode) {
+      function createCommunityLinkRow(model, errorCode, count) {
         if (!model || !errorCode) return null;
         const row = document.createElement('div');
         row.className = 'meta-row';
@@ -337,10 +340,16 @@
         const v = document.createElement('span');
         v.className = 'meta-value';
 
+        const n = Number.isFinite(count) ? count : 0;
+        const text = n > 0 ? (n + ' Lösungen vorhanden') : 'Noch keine Lösung';
+        const info = document.createElement('span');
+        info.textContent = text + ' ';
+        v.appendChild(info);
+
         const link = document.createElement('a');
         link.className = 'community-link';
         link.href = '/community/solutions/' + encodeURIComponent(model) + '/' + encodeURIComponent(errorCode);
-        link.textContent = 'Lösungen ansehen';
+        link.textContent = n > 0 ? 'Lösungen ansehen' : 'Erste Lösung hinzufügen';
         v.appendChild(link);
 
         row.appendChild(l);
@@ -369,6 +378,66 @@
         return row;
       }
 
+      function renderAutoBmkBox(autoBmks, modelFallback) {
+        if (!Array.isArray(autoBmks) || autoBmks.length === 0) return null;
+        const box = document.createElement('div');
+        box.className = 'auto-bmk-box';
+
+        const title = document.createElement('div');
+        title.className = 'auto-bmk-title';
+        title.textContent = 'Zugeordnete Baugruppe (BMK)';
+        box.appendChild(title);
+
+        autoBmks.forEach((entry) => {
+          if (!entry) return;
+          const code = String(entry.bmk || entry.code || '').trim();
+          const sensor = cleanDisplayText(entry.sensor || entry.geber || entry.geber_name || entry.sensor_name || '');
+          const location = cleanDisplayText(entry.location || entry.sensor_location || entry.installation_place || '');
+          if (!code && !sensor && !location) return;
+
+          const row = document.createElement('div');
+          row.className = 'auto-bmk-row';
+
+          if (code) {
+            const label = document.createElement('div');
+            label.className = 'auto-bmk-label';
+            label.textContent = 'BMK: ' + code;
+            row.appendChild(label);
+          }
+
+          if (sensor) {
+            const sensorLine = document.createElement('div');
+            sensorLine.className = 'auto-bmk-meta';
+            sensorLine.textContent = 'Geber/Bauteil: ' + sensor;
+            row.appendChild(sensorLine);
+          }
+
+          if (location) {
+            const locationLine = document.createElement('div');
+            locationLine.className = 'auto-bmk-meta';
+            locationLine.textContent = 'Ort: ' + location;
+            row.appendChild(locationLine);
+          }
+
+          if (code) {
+            const link = document.createElement('a');
+            link.className = 'auto-bmk-link';
+            link.textContent = 'BMK öffnen';
+            const model = String(entry.model || modelFallback || '').trim();
+            const params = new URLSearchParams(window.location.search || '');
+            if (model) params.set('bmk_model', model);
+            params.set('bmk_query', code);
+            params.set('bmk_autorun', '1');
+            link.href = '/?' + params.toString() + '#bmk';
+            row.appendChild(link);
+          }
+
+          box.appendChild(row);
+        });
+
+        return box;
+      }
+
       function mapSourceLabel(raw) {
         if (!raw) return 'Unbekannte Quelle';
         switch (raw) {
@@ -381,6 +450,135 @@
           case 'manual': return 'Handbuch / Sonstiges';
           default: return raw || 'Unbekannte Quelle';
         }
+      }
+
+      function pickValue(result, meta, keys) {
+        for (let i = 0; i < keys.length; i++) {
+          const key = keys[i];
+          if (result && result[key] !== undefined && result[key] !== null && String(result[key]).trim() !== '') {
+            return result[key];
+          }
+          if (meta && meta[key] !== undefined && meta[key] !== null && String(meta[key]).trim() !== '') {
+            return meta[key];
+          }
+        }
+        return null;
+      }
+
+      function confidenceBadge(confidenceRaw) {
+        const val = String(confidenceRaw || '').toLowerCase().trim();
+        if (val === 'starterpack') return { label: 'Grundwissen', cls: 'badge-starterpack' };
+        if (val === 'community') return { label: 'Community', cls: 'badge-community' };
+        return { label: 'Import', cls: 'badge-import' };
+      }
+
+      function isChunkResult(result, meta) {
+        return Boolean(
+          pickValue(result, meta, ['id', '_id', 'type', 'short_description', 'question', 'answer', 'related_chunks', 'confidence'])
+        );
+      }
+
+      function addFeedbackBar(card, resultObj) {
+        const feedbackBar = document.createElement('div');
+        feedbackBar.className = 'feedback-bar';
+
+        const feedbackBtn = document.createElement('button');
+        feedbackBtn.type = 'button';
+        feedbackBtn.className = 'btn danger small';
+        feedbackBtn.textContent = 'Fehler melden';
+
+        feedbackBtn.addEventListener('click', () => {
+          let currentQuestion = '';
+          const qEl = document.getElementById('question');
+          const bEl = document.getElementById('bmk_query');
+
+          if (qEl && qEl.value) currentQuestion = qEl.value;
+          if (!currentQuestion && bEl && bEl.value) currentQuestion = bEl.value;
+
+          sendFeedback(currentQuestion, resultObj);
+        });
+
+        feedbackBar.appendChild(feedbackBtn);
+        card.appendChild(feedbackBar);
+      }
+
+      function renderChunkCard(result, meta) {
+        const card = document.createElement('div');
+        card.className = 'result-card chunk-card';
+
+        const chunkId = pickValue(result, meta, ['id', '_id']);
+        const titleText = cleanDisplayText(pickValue(result, meta, ['title']) || 'Ohne Titel');
+        const modelText = cleanDisplayText(pickValue(result, meta, ['model', 'modell']) || '');
+        const typeText = cleanDisplayText(pickValue(result, meta, ['type']) || '');
+        const confidence = pickValue(result, meta, ['confidence']);
+        const badgeInfo = confidenceBadge(confidence);
+
+        const shortDesc = cleanDisplayText(pickValue(result, meta, ['short_text_display', 'short_description_display', 'short_description', 'short_desc', 'short_text']) || '');
+        const answer = cleanDisplayText(pickValue(result, meta, ['answer']) || '');
+        const text = cleanDisplayText(pickValue(result, meta, ['long_text_display', 'text_display', 'text', 'chunk']) || '');
+        const summary = shortDesc || answer || text;
+
+        const header = document.createElement('div');
+        header.className = 'chunk-header';
+
+        const title = document.createElement('div');
+        title.className = 'chunk-title';
+        if (chunkId) {
+          const link = document.createElement('a');
+          link.className = 'chunk-title-link';
+          link.href = '/chunk/' + encodeURIComponent(chunkId);
+          link.textContent = titleText;
+          title.appendChild(link);
+        } else {
+          title.textContent = titleText;
+        }
+
+        const badge = document.createElement('span');
+        badge.className = 'chunk-badge ' + badgeInfo.cls;
+        badge.textContent = badgeInfo.label;
+
+        header.appendChild(title);
+        header.appendChild(badge);
+
+        const metaLine = document.createElement('div');
+        metaLine.className = 'chunk-meta-line';
+        const metaParts = [modelText, typeText].filter(Boolean);
+        metaLine.textContent = metaParts.length ? metaParts.join(' / ') : 'Unbekannt';
+
+        const idLine = document.createElement('div');
+        idLine.className = 'chunk-id';
+        if (chunkId) {
+          idLine.textContent = 'ID: ' + chunkId;
+        }
+
+        const summaryEl = document.createElement('div');
+        summaryEl.className = 'chunk-summary';
+        if (summary) {
+          const maxLen = 220;
+          summaryEl.textContent = summary.length > maxLen ? summary.slice(0, maxLen) + ' ...' : summary;
+        }
+
+        card.appendChild(header);
+        card.appendChild(metaLine);
+        if (chunkId) {
+          card.appendChild(idLine);
+        }
+        if (summary) {
+          card.appendChild(summaryEl);
+        }
+
+        if (chunkId) {
+          const links = document.createElement('div');
+          links.className = 'chunk-links';
+          const link = document.createElement('a');
+          link.className = 'chunk-link';
+          link.href = '/chunk/' + encodeURIComponent(chunkId);
+          link.textContent = 'Detail oeffnen';
+          links.appendChild(link);
+          card.appendChild(links);
+        }
+
+        return card;
       }
 
       function renderResults(resultsEl, results, opts) {
@@ -406,6 +604,12 @@
 
         results.forEach((r, idx) => {
           const meta = r.metadata || {};
+          if (isChunkResult(r, meta)) {
+            const chunkCard = renderChunkCard(r, meta);
+            addFeedbackBar(chunkCard, r);
+            resultsEl.appendChild(chunkCard);
+            return;
+          }
           const card = document.createElement('div');
           card.className = 'result-card';
 
@@ -471,9 +675,12 @@
           if (errorCode && isLikelyErrorCode(errorCode)) {
             const codeRow = createMetaRow('Fehlercode', errorCode);
             if (codeRow) metaBox.appendChild(codeRow);
-            const communityRow = createCommunityLinkRow(model, errorCode);
+            const solutionCount = Number(r.solution_count ?? meta.solution_count ?? 0);
+            const communityRow = createCommunityLinkRow(model, errorCode, solutionCount);
             if (communityRow) metaBox.appendChild(communityRow);
           }
+          const lsbRow = createMetaRow('LSB (Fehler)', lsbError);
+          if (lsbRow) metaBox.appendChild(lsbRow);
           if (bmkCode && isLikelyBmkCode(bmkCode)) {
             const row = document.createElement('div');
             row.className = 'meta-row';
@@ -530,16 +737,27 @@
             const detailRows = [
               createMetaRow('Wagen', wagon),
               createMetaRow('Blatt', blatt),
-              createMetaRow('LSB (Fehler)', lsbError),
               createMetaRow('LSB (BMK)', lsbBmk),
-              createMetaRow('Geber/Bauteil', sensor),
-              createMetaRow('Ort', location),
             ];
 
             detailRows.forEach((row) => { if (row) inner.appendChild(row); });
 
             details.appendChild(inner);
             metaBox.appendChild(details);
+          }
+
+          const sourceType = (r.source_type || meta.source_type || '').toString().toLowerCase();
+          if (sourceType === 'lec_error') {
+            const detailEntry = {
+              bmk: bmkCode,
+              sensor: sensor,
+              location: location,
+              model: model
+            };
+            const autoBox = renderAutoBmkBox([detailEntry], model);
+            if (autoBox) {
+              card.appendChild(autoBox);
+            }
           }
 
           const textBox = document.createElement('div');
@@ -614,8 +832,8 @@
             textBox.appendChild(explainBox);
           }
 
-          const shortText = cleanDisplayText(meta.short_text || meta.title || r.title || '');
-          const longText = cleanDisplayText(meta.long_text || meta.text || r.text || '');
+          const shortText = cleanDisplayText(meta.short_text_display || meta.short_text || meta.title || r.title || '');
+          const longText = cleanDisplayText(meta.long_text_display || meta.long_text || meta.text || r.text || '');
 
           if (shortText) {
             const p = document.createElement('p');
@@ -643,28 +861,7 @@
           card.appendChild(metaBox);
           card.appendChild(textBox);
 
-          // --- Fehler melden Button ---
-          const feedbackBar = document.createElement('div');
-          feedbackBar.className = 'feedback-bar';
-
-          const feedbackBtn = document.createElement('button');
-          feedbackBtn.type = 'button';
-          feedbackBtn.className = 'btn danger small';
-          feedbackBtn.textContent = 'Fehler melden';
-
-          feedbackBtn.addEventListener('click', () => {
-            let currentQuestion = '';
-            const qEl = document.getElementById('question');
-            const bEl = document.getElementById('bmk_query');
-
-            if (qEl && qEl.value) currentQuestion = qEl.value;
-            if (!currentQuestion && bEl && bEl.value) currentQuestion = bEl.value;
-
-            sendFeedback(currentQuestion, r);
-          });
-
-          feedbackBar.appendChild(feedbackBtn);
-          card.appendChild(feedbackBar);
+          addFeedbackBar(card, r);
           resultsEl.appendChild(card);
         });
         updateResultsState();
@@ -739,6 +936,65 @@
       const form = document.getElementById('search-form');
       const statusEl = document.getElementById('search-status');
       const resultsEl = document.getElementById('search-results');
+      const bmkStatus = document.getElementById('bmk-status');
+      const bmkResults = document.getElementById('bmk-results');
+
+      function updateQueryParams(patch) {
+        const params = new URLSearchParams(window.location.search || '');
+        Object.keys(patch || {}).forEach((key) => {
+          const value = patch[key];
+          if (value === null || value === undefined || value === '') {
+            params.delete(key);
+          } else {
+            params.set(key, String(value));
+          }
+        });
+        const next = window.location.pathname + (params.toString() ? ('?' + params.toString()) : '') + window.location.hash;
+        window.history.replaceState({}, '', next);
+      }
+
+      function runLecSearch(question, model, sourceType, topK) {
+        setStatus(statusEl, 'Suche läuft ...', 'pending');
+        resultsEl.innerHTML = '';
+        updateResultsState();
+
+        fetch('{{ url_for("api_search") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: question,
+            top_k: parseInt(topK, 10),
+            model: model || null,
+            source_type: sourceType || null
+          })
+        })
+          .then(resp => resp.json())
+          .then(data => {
+            if (!data.ok) {
+              setStatus(statusEl, 'Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
+              return;
+            }
+            const total = (data.results?.length || 0) + (data.general_results?.length || 0);
+            if (total === 0) {
+              setStatus(statusEl, 'Keine Treffer gefunden', 'ok');
+              resultsEl.textContent = 'Keine Treffer gefunden.';
+              updateResultsState();
+              return;
+            }
+            setStatus(statusEl, 'Treffer: ' + total, 'ok');
+            resultsEl.innerHTML = '';
+            if (data.general_results && data.general_results.length) {
+              renderResults(resultsEl, data.general_results, { append: true, title: 'General / Diagnose' });
+            }
+            if (data.results && data.results.length) {
+              renderResults(resultsEl, data.results, { append: true, title: 'LEC / Modell' });
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            setStatus(statusEl, 'Fehler bei der Anfrage: ' + err, 'error');
+          });
+      }
 
       if (form) {
         form.addEventListener('submit', function(ev) {
@@ -761,53 +1017,18 @@
             return;
           }
 
-          setStatus(statusEl, 'Suche läuft ...', 'pending');
-          resultsEl.innerHTML = '';
-          updateResultsState();
-
-          fetch('{{ url_for("api_search") }}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              question: question,
-              top_k: parseInt(topK, 10),
-              model: model || null,
-              source_type: sourceType || null
-            })
-          })
-            .then(resp => resp.json())
-            .then(data => {
-              if (!data.ok) {
-                setStatus(statusEl, 'Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
-                return;
-              }
-              const total = (data.results?.length || 0) + (data.general_results?.length || 0);
-              if (total === 0) {
-                setStatus(statusEl, 'Keine Treffer gefunden', 'ok');
-                resultsEl.textContent = 'Keine Treffer gefunden.';
-                updateResultsState();
-                return;
-              }
-              setStatus(statusEl, 'Treffer: ' + total, 'ok');
-              resultsEl.innerHTML = '';
-              if (data.general_results && data.general_results.length) {
-                renderResults(resultsEl, data.general_results, { append: true, title: 'General / Diagnose' });
-              }
-              if (data.results && data.results.length) {
-                renderResults(resultsEl, data.results, { append: true, title: 'LEC / Modell' });
-              }
-            })
-            .catch(err => {
-              console.error(err);
-              setStatus(statusEl, 'Fehler bei der Anfrage: ' + err, 'error');
-            });
+          updateQueryParams({
+            lec_query: question,
+            lec_model: model,
+            source_type: sourceType,
+            top_k: topK
+          });
+          runLecSearch(question, model, sourceType, topK);
         });
       }
 
       // BMK Suche
       const bmkForm = document.getElementById('bmk-form');
-      const bmkStatus = document.getElementById('bmk-status');
-      const bmkResults = document.getElementById('bmk-results');
 
       if (bmkForm) {
         bmkForm.addEventListener('submit', function(ev) {
@@ -831,6 +1052,12 @@
           setStatus(bmkStatus, 'BMK-Suche läuft ...', 'pending');
           bmkResults.innerHTML = '';
           updateResultsState();
+
+          updateQueryParams({
+            bmk_query: q,
+            bmk_model: model
+          });
+
 
           fetch('{{ url_for("api_bmk_search") }}', {
             method: 'POST',
@@ -886,7 +1113,7 @@
             return;
           }
 
-          setStatus(etkStatus, 'Ersatzteile-Suche lÇÏuft ...', 'pending');
+          setStatus(etkStatus, 'Ersatzteile-Suche läuft ...', 'pending');
           etkResults.innerHTML = '';
           updateResultsState();
 
@@ -915,8 +1142,70 @@
         });
       }
 
+      function applyBmkPrefillFromQuery() {
+        const params = new URLSearchParams(window.location.search || '');
+        const bmkModel = params.get('bmk_model');
+        const bmkQuery = params.get('bmk_query');
+        if (bmkModel) {
+          const modelEl = document.getElementById('bmk_model');
+          if (modelEl) modelEl.value = bmkModel;
+        }
+        if (bmkQuery) {
+          const queryEl = document.getElementById('bmk_query');
+          if (queryEl) queryEl.value = bmkQuery;
+        }
+      }
+
+      function applyLecPrefillFromQuery() {
+        const params = new URLSearchParams(window.location.search || '');
+        const lecQuery = params.get('lec_query');
+        const lecModel = params.get('lec_model');
+        const lecSource = params.get('source_type');
+        const lecTopK = params.get('top_k');
+
+        if (lecQuery) {
+          const qEl = document.getElementById('question');
+          if (qEl) qEl.value = lecQuery;
+        }
+        if (lecModel) {
+          const mEl = document.getElementById('model');
+          if (mEl) mEl.value = lecModel;
+        }
+        if (lecSource) {
+          const sEl = document.getElementById('source_type');
+          if (sEl) sEl.value = lecSource;
+        }
+        if (lecTopK) {
+          const tEl = document.getElementById('top_k');
+          if (tEl) tEl.value = lecTopK;
+        }
+        if (lecQuery && lecModel) {
+          runLecSearch(lecQuery, lecModel, lecSource || (document.getElementById('source_type') || {}).value || '', lecTopK || '5');
+        }
+      }
+
+      function applyInitialBmkResults() {
+        if (!Array.isArray(INITIAL_BMK_RESULTS) || INITIAL_BMK_RESULTS.length === 0) {
+          if (INITIAL_BMK_STATUS && bmkStatus) {
+            setStatus(bmkStatus, INITIAL_BMK_STATUS, INITIAL_BMK_STATUS_TYPE || '');
+          }
+          return;
+        }
+        if (bmkStatus) {
+          setStatus(bmkStatus, INITIAL_BMK_STATUS || ('Treffer: ' + INITIAL_BMK_RESULTS.length), INITIAL_BMK_STATUS_TYPE || 'ok');
+        }
+        renderResults(bmkResults, INITIAL_BMK_RESULTS);
+        updateResultsState();
+      }
+
+      applyBmkPrefillFromQuery();
+      applyLecPrefillFromQuery();
+      applyInitialBmkResults();
+
+
     })();
   </script>
 <script src="{{ url_for('static', filename='contact.js') }}?v=1.4"></script>
 </body>
 </html>
+

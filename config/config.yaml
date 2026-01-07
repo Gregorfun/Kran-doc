@@ -12,6 +12,13 @@ manuals_dir: "input/manuals"  # <- dein Ordnername mit "e" hier eintragen
 models_dir: "output/models"
 reports_dir: "output/reports"
 embeddings_dir: "output/embeddings"
+models_root: "input/Liebherr/models"
+spl_ocr_only_if_gibberish: true
+spl_ocr_max_pages: 0
+spl_page_start: 0
+spl_page_end: 0
+spl_auto_ocr_sample_pages: 10
+spl_auto_ocr_threshold: 0.6
 
 tesseract_cmd: "D:/PDFDoc/Tesseract OCR Windows installer/tesseract.exe"
 ocr_enabled: true
