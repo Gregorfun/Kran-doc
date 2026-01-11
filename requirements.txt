@@ -47,7 +47,7 @@ safetensors==0.7.0
 
 # ML utilities
 scikit-learn==1.8.0
-joblib==1.5.2
+joblib==1.5.3
 
 # Numerical computing
 numpy==2.2.6
