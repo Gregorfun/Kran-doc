@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import json
 import os
 import re
@@ -17,6 +18,27 @@ from typing import Any, Dict, List, Optional
 from webapp.telegram_notify import send_telegram
 from flask import Flask, flash, jsonify, redirect, render_template, render_template_string, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+
+
+def _is_debug_enabled() -> bool:
+    debug_flag = (os.getenv("KRANDOC_DEBUG") or os.getenv("FLASK_DEBUG") or "").strip().lower()
+    return debug_flag in {"1", "true", "yes", "on"}
+
+
+def _setup_logging() -> None:
+    root = logging.getLogger()
+    if root.handlers:
+        return
+    level_name = (os.getenv("KRANDOC_LOG_LEVEL") or ("DEBUG" if _is_debug_enabled() else "INFO")).upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+
+_setup_logging()
+logger = logging.getLogger("kran-doc")
 
 # ============================================================
 # Projekt-Root sicher setzen (damit imports aus /scripts und /config funktionieren)
@@ -265,7 +287,7 @@ def _seed_admin_if_needed() -> None:
             }
             users.append(admin_user)
             _save_users(users)
-            print("[KRAN-DOC] Admin-Account aus ENV erstellt.")
+            logger.info("[KRAN-DOC] Admin-Account aus ENV erstellt.")
         return
 
     default_email = target_email or "admin@local"
@@ -286,7 +308,14 @@ def _seed_admin_if_needed() -> None:
     }
     users.append(admin_user)
     _save_users(users)
-    print("[KRAN-DOC] Admin-Seed erstellt: email=%s pass=%s (bitte ändern)" % (default_email, default_password))
+    if _is_debug_enabled():
+        logger.warning("[KRAN-DOC] Admin-Seed erstellt: email=%s pass=%s (bitte ändern)", default_email, default_password)
+    else:
+        logger.warning(
+            "[KRAN-DOC] Admin-Seed erstellt: email=%s (Passwort nicht ausgegeben). "
+            "Setze KRANDOC_ADMIN_PASSWORD oder aktiviere KRANDOC_DEBUG zum Anzeigen.",
+            default_email,
+        )
 
 def _current_user() -> Optional[Dict[str, Any]]:
     user_id = session.get("user_id")
@@ -893,6 +922,13 @@ def _attach_explain(results: List[Any], model: Optional[str]) -> List[Any]:
         except Exception:
             continue
     return results
+
+
+from webapp.spl_pin_hints import attach_spl_pin_hints as _attach_spl_pin_hints_impl
+
+
+def _attach_spl_pin_hints(results: List[Dict[str, Any]], model_hint: Optional[str] = None) -> List[Dict[str, Any]]:
+    return _attach_spl_pin_hints_impl(results, models_dir=CONFIG.models_dir, model_hint=model_hint)
 
 def _attach_traffic_light(results: List[Any]) -> List[Any]:
     for r in results or []:
@@ -2501,16 +2537,24 @@ def api_search():
         results = _normalize_chunk_results(results)
         results = _attach_lec_display_text(results, model_hint=model)
         results = _attach_auto_bmks(results, model_hint=model)
+        results = _attach_spl_pin_hints(results, model_hint=model)
         results = _attach_solution_counts(results)
         general_results: List[Dict[str, Any]] = []
         if source_mode == "combo":
             general_results = _search_general(question, top_k=top_k)
-            print(f"[GENERAL] returned {len(general_results)} items")
+            logger.debug("[GENERAL] returned %s items", len(general_results))
             general_results = _attach_explain(general_results, model)
             general_results = _attach_traffic_light(general_results)
             general_results = _dedupe_results(general_results)
             general_results = _normalize_chunk_results(general_results)
-        print(f"[SEARCH] q={question!r} model={model!r} source_type_filter={source_mode!r} results={len(results)} general={len(general_results)}")
+        logger.debug(
+            "[SEARCH] q=%r model=%r source_type_filter=%r results=%s general=%s",
+            question,
+            model,
+            source_mode,
+            len(results),
+            len(general_results),
+        )
         return jsonify({"ok": True, "results": results, "general_results": general_results})
 
     # ✅ Normale Embedding-Suche + Enrichment
@@ -2546,14 +2590,22 @@ def api_search():
         results = _normalize_chunk_results(results)
         results = _attach_lec_display_text(results, model_hint=model)
         results = _attach_auto_bmks(results, model_hint=model)
+        results = _attach_spl_pin_hints(results, model_hint=model)
         results = _attach_solution_counts(results)
     if general_results:
-        print(f"[GENERAL] returned {len(general_results)} items")
+        logger.debug("[GENERAL] returned %s items", len(general_results))
         general_results = _attach_explain(general_results, model)
         general_results = _attach_traffic_light(general_results)
         general_results = _dedupe_results(general_results)
         general_results = _normalize_chunk_results(general_results)
-    print(f"[SEARCH] q={question!r} model={model!r} source_type_filter={source_mode!r} results={len(results)} general={len(general_results)}")
+    logger.debug(
+        "[SEARCH] q=%r model=%r source_type_filter=%r results=%s general=%s",
+        question,
+        model,
+        source_mode,
+        len(results),
+        len(general_results),
+    )
     return jsonify({"ok": True, "results": results, "general_results": general_results})
 
 @app.route("/api/bmk_search", methods=["POST"])
@@ -2770,7 +2822,7 @@ def contact():
     return jsonify(ok=True)
 
 def main():
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=_is_debug_enabled())
 
 if __name__ == "__main__":
     main()

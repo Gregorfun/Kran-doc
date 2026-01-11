@@ -49,10 +49,14 @@
       "Teilnehmer/Steuergerät hat Spannungsausfall oder Defekt"
     ],
     "next_steps": [
-      "Fehlerhäufigkeit prüfen (sporadisch vs. dauerhaft)",
-      "Stecker/Leitungen/Abschirmung prüfen (Zug, Scheuerstellen, Feuchte)",
-      "Versorgungsspannung des betroffenen Teilnehmers prüfen"
-    ]
+      "Fehlerhäufigkeit prüfen (sporadisch vs. dauerhaft) und Zeitpunkt/Umgebung notieren (Regen/Wäsche/Vibration)",
+      "Stecker/Leitungen/Abschirmung prüfen (Zug, Scheuerstellen, Feuchte, Korrosion) – besonders an Übergängen/Drehstellen",
+      "Versorgungsspannung/Masse des betroffenen Teilnehmers prüfen (Unterspannung erzeugt oft Folgefehler)",
+      "CAN-H/CAN-L prüfen: Leitungsbeschädigung, Kurzschluss gegen Masse/Plus, Vertauschung – nach Schaltplan messen",
+      "Terminierung prüfen (typisch ~60 Ω zwischen CAN-H und CAN-L bei ruhendem Bus; Abweichungen deuten auf fehlende/zusätzliche Terminierung)",
+      "Wenn möglich: Teilnehmer/Sektion isolieren (Stecker nacheinander trennen) um den fehlerhaften Ast einzugrenzen"
+    ],
+    "notes": "Hinweis: Messwerte/Terminierung hängen vom System ab. Immer Schaltplan/Hersteller-Vorgaben beachten; bei sicherheitsrelevanten Funktionen Betrieb stoppen."
   },
   "SENSOR_SIGNAL": {
     "title": "Geber/Sensor: Signal unplausibel",

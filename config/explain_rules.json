@@ -33,7 +33,17 @@
       "bus",
       "lsb teilnehmer",
       "kommunikation",
-      "datenbus"
+      "datenbus",
+      "bus-off",
+      "bus off",
+      "timeout",
+      "teilnehmer offline",
+      "telegramm",
+      "telegrammfehler",
+      "no communication",
+      "kommunikationsfehler",
+      "can-h",
+      "can-l"
     ]
   },
   {

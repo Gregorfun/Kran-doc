@@ -24,3 +24,18 @@ C:\Users\Gregor sein\OneDrive\PDFDoc\PDFDoc\kran-tools\
 ├─ pdfdoc.bat        # Doppelklick-Starter für das CLI-Menü
 ├─ requirements.txt  # Python-Abhängigkeiten
 └─ README.md         # Dieses Dokument
+
+```
+
+## Systemcheck (Doctor)
+
+Der Doctor prüft lokal die wichtigsten Voraussetzungen (Config/Ordner, Schreibrechte, Tesseract/OCR, optional PDF-Lesen).
+
+- CLI-Menü: Option `[10] Systemcheck / Doctor (OCR/PDF/Config)`
+- Direkt ausführen:
+	- `python scripts/doctor.py`
+	- optional: `python scripts/doctor.py --no-ocr` oder `python scripts/doctor.py --no-pdf`
+
+Wenn OCR fehlschlägt:
+- Tesseract installieren und den Pfad setzen (in `config/config.yaml` oder per Env `TESSERACT_CMD`).
+- Prüfen, dass `pytesseract` + `Pillow` in der `.venv` installiert sind.

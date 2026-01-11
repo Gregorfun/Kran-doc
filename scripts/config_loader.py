@@ -16,6 +16,7 @@ Verwendung in anderen Skripten:
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -28,9 +29,17 @@ CONFIG_PATH = CONFIG_DIR / "config.yaml"
 @dataclass
 class PDFDocConfig:
     # Pfade (relativ zu BASE_DIR, außer es ist ein absoluter Pfad)
-    input_pdf_dir: str = "input/pdf"
+    input_pdf_dir: str = "input"
+
+    # optionale Alt-/Reserve-Pfade (werden nicht zwingend von allen Skripten genutzt)
+    lec_dir: str = "input/lec"
+    bmk_dir: str = "input/bmk"
+    spl_dir: str = "input/spl"
+    manuals_dir: str = "input/manuals"
+
     models_dir: str = "output/models"
     reports_dir: str = "output/reports"
+    embeddings_dir: str = "output/embeddings"
     models_root: str = "input/Liebherr/models"
 
     # OCR / Tesseract
@@ -105,6 +114,14 @@ def get_config() -> PDFDocConfig:
     # leere Strings bei tesseract_cmd als "nicht gesetzt" behandeln
     if base_config.tesseract_cmd == "":
         base_config.tesseract_cmd = None
+
+    # ENV kann config.yaml überschreiben (praktisch für verschiedene Rechner)
+    env_tesseract = (
+        os.getenv("PDFDOC_TESSERACT_CMD")
+        or os.getenv("TESSERACT_CMD")
+    )
+    if env_tesseract:
+        base_config.tesseract_cmd = env_tesseract.strip() or None
 
     _CONFIG_CACHE = base_config
     return base_config

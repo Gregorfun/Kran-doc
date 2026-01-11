@@ -227,6 +227,7 @@ def extract_pages_text(
     max_ocr_pages: int = 0,
     auto_ocr_sample_pages: int = 0,
     auto_ocr_threshold: float = 0.0,
+    ocr_pages: Optional[set[int]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Lies alle Seiten des SPL-PDFs ein.
@@ -259,7 +260,11 @@ def extract_pages_text(
 
         needs_ocr = is_gibberish(raw)
         effective_only_if_gibberish = ocr_only_if_gibberish and not force_ocr_all
-        if (not effective_only_if_gibberish) or needs_ocr:
+
+        # Gezielt OCR für bestimmte Seiten erzwingen
+        force_this_page = bool(ocr_pages) and (page_index in (ocr_pages or set()))
+
+        if force_this_page or (not effective_only_if_gibberish) or needs_ocr:
             if max_ocr_pages and ocr_used >= max_ocr_pages:
                 pages.append(
                     {
@@ -270,7 +275,9 @@ def extract_pages_text(
                     }
                 )
                 continue
-            if needs_ocr:
+            if force_this_page:
+                print(f"  -> Seite {page_index+1}: OCR fuer Seite erzwungen (ocr_pages)")
+            elif needs_ocr:
                 print(f"  -> Seite {page_index+1}: Gibberish erkannt, OCR-Fallback")
             else:
                 print(f"  -> Seite {page_index+1}: OCR erzwungen")
@@ -578,6 +585,7 @@ def process_spl_pdf(
     max_ocr_pages: int = 0,
     auto_ocr_sample_pages: int = 0,
     auto_ocr_threshold: float = 0.0,
+    ocr_pages: Optional[set[int]] = None,
 ) -> None:
     print(f"Verarbeite SPL-PDF: {pdf_path.name}")
 
@@ -608,6 +616,7 @@ def process_spl_pdf(
         max_ocr_pages=max_ocr_pages,
         auto_ocr_sample_pages=auto_ocr_sample_pages,
         auto_ocr_threshold=auto_ocr_threshold,
+        ocr_pages=ocr_pages,
     )
     full_text = "\n".join(page["text"] for page in pages)
 
@@ -699,6 +708,7 @@ def process_all_spl_pdfs(
     max_ocr_pages: int = 0,
     auto_ocr_sample_pages: int = 0,
     auto_ocr_threshold: float = 0.0,
+    ocr_pages: Optional[set[int]] = None,
 ) -> None:
     if not INPUT_ROOT.exists():
         print(f"Eingabeverzeichnis existiert nicht: {INPUT_ROOT}")
@@ -719,6 +729,7 @@ def process_all_spl_pdfs(
             max_ocr_pages=max_ocr_pages,
             auto_ocr_sample_pages=auto_ocr_sample_pages,
             auto_ocr_threshold=auto_ocr_threshold,
+            ocr_pages=ocr_pages,
         )
 
 
@@ -740,10 +751,31 @@ if __name__ == "__main__":
         action="store_true",
         help="OCR fuer alle Seiten erzwingen",
     )
+    parser.add_argument(
+        "--ocr-pages",
+        type=str,
+        default="",
+        help="Gezielt OCR fuer Seiten (0-basiert), z.B. '6,8,9,11'",
+    )
     args = parser.parse_args()
 
     page_end = args.page_end if args.page_end > 0 else None
     ocr_only_if_gibberish = args.ocr_only_if_gibberish and not args.ocr_always
+
+    ocr_pages: Optional[set[int]] = None
+    if args.ocr_pages:
+        parsed_pages: set[int] = set()
+        for part in str(args.ocr_pages).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                parsed_pages.add(int(part))
+            except Exception:
+                continue
+        if parsed_pages:
+            ocr_pages = parsed_pages
+
     process_all_spl_pdfs(
         page_start=args.page_start,
         page_end=page_end,
@@ -751,4 +783,5 @@ if __name__ == "__main__":
         max_ocr_pages=args.max_ocr_pages,
         auto_ocr_sample_pages=args.auto_ocr_sample_pages,
         auto_ocr_threshold=args.auto_ocr_threshold,
+        ocr_pages=ocr_pages,
     )

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Intentionally light: we avoid installing the full ML stack (torch/transformers)
+      # and still catch real regressions (syntax + undefined names).
+      - name: Install ruff
+        run: python -m pip install --upgrade pip ruff
+
+      - name: Ruff (pyflakes only)
+        run: ruff check --select F .
+
+      - name: Compile all Python files
+        run: python -m compileall -q .
