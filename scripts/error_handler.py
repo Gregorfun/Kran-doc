@@ -18,7 +18,7 @@ import functools
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Callable, Optional, Type, TypeVar, Union, Tuple
+from typing import Any, Callable, Optional, TypeVar, Union
 
 from scripts.logger import get_logger
 
@@ -68,7 +68,7 @@ def retry_on_failure(
     max_attempts: int = 3,
     delay: float = 1.0,
     backoff: float = 2.0,
-    exceptions: Tuple[Type[Exception], ...] = (IOError, ConnectionError, TimeoutError)
+    exceptions: tuple[type[Exception], ...] = (IOError, ConnectionError, TimeoutError)
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Dekorator der eine Funktion bei Fehler wiederholt.
