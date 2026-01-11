@@ -1,0 +1,80 @@
+# Docker ignore - Dateien die nicht ins Image kopiert werden sollen
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDEs
+.vscode/
+.vscode-server/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Secrets und Config
+.env
+.env.*
+secrets.*
+*secret*
+
+# Output (wird via Volumes gemountet)
+output/
+semantic_index/
+embeddings/
+
+# PDFs (werden via Volumes gemountet)
+input/pdf/
+input/pdfs/
+**/*.pdf
+
+# Temporäre Dateien
+tmp/
+temp/
+.cache/
+*.bak
+
+# Documentation
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs/
+
+# Development
+.pre-commit-config.yaml
+Makefile
+*.code-workspace
+.pytest_cache/
+.mypy_cache/
+
+# CI/CD
+.github/
+
+# Docker-Files selbst
+Dockerfile
+docker-compose.yml
+.dockerignore

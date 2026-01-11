@@ -1,0 +1,110 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kran-tools"
+version = "0.5.0"
+description = "Automatisierte Extraktion und Verwaltung von Kranendokumentation aus PDF-Dateien"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Gregor", email = "gregorfun@users.noreply.github.com"}
+]
+keywords = ["pdf", "crane", "documentation", "parser", "knowledge-management"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "Flask>=3.1.2",
+    "pypdf>=6.4.1",
+    "PyYAML>=6.0.3",
+    "pytesseract>=0.3.13",
+    "opencv-python>=4.12.0",
+    "pillow>=12.0.0",
+    "sentence-transformers>=5.1.2",
+    "torch>=2.9.1",
+    "numpy>=2.2.6",
+    "requests>=2.32.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.2.0",
+    "isort>=5.13.2",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Gregorfun/Kran-doc"
+Repository = "https://github.com/Gregorfun/Kran-doc"
+Issues = "https://github.com/Gregorfun/Kran-doc/issues"
+
+# Note: Console script entry point disabled until pdfdoc_cli.py is updated
+# [project.scripts]
+# pdfdoc-cli = "scripts.pdfdoc_cli:main"
+
+[tool.black]
+line-length = 120
+target-version = ["py38", "py39", "py310", "py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | env
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_gitignore = true
+skip = [".venv", "venv", "env", "build", "dist"]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    "build",
+    "dist",
+    "__pycache__",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = [
+    "venv",
+    "env",
+    ".venv",
+    "build",
+    "dist",
+]
