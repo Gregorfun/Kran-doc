@@ -46,3 +46,13 @@ input/**/manuals/
 ml/model.pkl
 *.pkl
 *.joblib
+
+# --- Debug / Temp files ---
+h
+*debug*
+*Debug*
+*DEBUG*
+*.bak
+*.swp
+*.swo
+*~
