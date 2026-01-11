@@ -157,21 +157,15 @@ def create_env_file() -> bool:
         return False
     
     try:
-        env_example.rename(env_file)
+        # Kopiere statt umbenennen, um Template zu erhalten
+        import shutil
+        shutil.copy(env_example, env_file)
         print_success(".env Datei aus .env.example erstellt")
         print_warning("Bitte .env anpassen mit eigenen Einstellungen!")
         return True
     except Exception as e:
-        # Wenn Rename fehlschlägt (z.B. auf verschiedenen Dateisystemen), kopieren
-        try:
-            import shutil
-            shutil.copy(env_example, env_file)
-            print_success(".env Datei aus .env.example erstellt")
-            print_warning("Bitte .env anpassen mit eigenen Einstellungen!")
-            return True
-        except Exception as e2:
-            print_error(f"Konnte .env nicht erstellen: {e2}")
-            return False
+        print_error(f"Konnte .env nicht erstellen: {e}")
+        return False
 
 
 def verify_installation() -> bool:

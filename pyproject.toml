@@ -54,8 +54,9 @@ Homepage = "https://github.com/Gregorfun/Kran-doc"
 Repository = "https://github.com/Gregorfun/Kran-doc"
 Issues = "https://github.com/Gregorfun/Kran-doc/issues"
 
-[project.scripts]
-pdfdoc-cli = "scripts.pdfdoc_cli:main"
+# Note: Console script entry point disabled until pdfdoc_cli.py is updated
+# [project.scripts]
+# pdfdoc-cli = "scripts.pdfdoc_cli:main"
 
 [tool.black]
 line-length = 120

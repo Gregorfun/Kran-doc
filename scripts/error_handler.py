@@ -68,7 +68,7 @@ def retry_on_failure(
     max_attempts: int = 3,
     delay: float = 1.0,
     backoff: float = 2.0,
-    exceptions: tuple[Type[Exception], ...] = (Exception,)
+    exceptions: tuple[Type[Exception], ...] = (IOError, ConnectionError, TimeoutError)
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Dekorator der eine Funktion bei Fehler wiederholt.

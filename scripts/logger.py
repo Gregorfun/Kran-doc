@@ -151,10 +151,17 @@ def _init_default_logging() -> None:
     log_file_str = os.getenv("LOG_FILE", "")
     log_file = Path(log_file_str) if log_file_str else None
     
-    # Farben deaktivieren wenn NO_COLOR gesetzt ist
-    enable_colors = os.getenv("NO_COLOR", "") == ""
+    # Farben aus Umgebung prüfen
+    # NO_COLOR standard: https://no-color.org/
+    no_color = os.getenv("NO_COLOR", "") != ""
+    force_color = os.getenv("FORCE_COLOR", "") != ""
     
-    setup_logging(level=level, log_file=log_file, enable_colors=enable_colors)
+    # Farben aktivieren wenn:
+    # - FORCE_COLOR gesetzt, oder
+    # - NO_COLOR nicht gesetzt UND Terminal ist TTY
+    colors_enabled = force_color or (not no_color and sys.stdout.isatty())
+    
+    setup_logging(level=level, log_file=log_file, enable_colors=colors_enabled)
 
 
 # Automatische Initialisierung
