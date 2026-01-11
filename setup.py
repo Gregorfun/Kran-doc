@@ -163,7 +163,7 @@ def create_env_file() -> bool:
         print_success(".env Datei aus .env.example erstellt")
         print_warning("Bitte .env anpassen mit eigenen Einstellungen!")
         return True
-    except Exception as e:
+    except (OSError, PermissionError, IOError) as e:
         print_error(f"Konnte .env nicht erstellen: {e}")
         return False
 

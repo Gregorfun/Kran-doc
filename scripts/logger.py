@@ -79,7 +79,19 @@ def setup_logging(
         level: Log-Level (z.B. logging.INFO, logging.DEBUG)
         log_file: Optional: Pfad zur Log-Datei
         enable_colors: Ob Farben in Console aktiviert werden sollen
+            (wird von NO_COLOR/FORCE_COLOR Umgebungsvariablen überschrieben)
     """
+    import os
+    
+    # Umgebungsvariablen haben Priorität
+    no_color = os.getenv("NO_COLOR", "") != ""
+    force_color = os.getenv("FORCE_COLOR", "") != ""
+    
+    if force_color:
+        enable_colors = True
+    elif no_color:
+        enable_colors = False
+    
     # Root Logger konfigurieren
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
