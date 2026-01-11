@@ -23,7 +23,7 @@ idna==3.11
 
 # --- PDF Processing ---
 # PDF reading and text extraction
-pypdf==6.4.1
+pypdf==6.6.0
 pypdfium2==5.1.0
 
 # OCR (Optical Character Recognition)
