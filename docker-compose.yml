@@ -1,0 +1,44 @@
+# Docker Compose für PDFDoc / Kran-Tools
+# Ermöglicht einfaches Starten der Anwendung mit allen Dependencies
+
+version: '3.8'
+
+services:
+  pdfdoc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pdfdoc-kran-tools
+    ports:
+      - "5000:5000"
+    volumes:
+      # Input-Verzeichnisse (zum Hinzufügen von PDFs)
+      - ./input:/app/input
+      # Output-Verzeichnisse (generierte Daten bleiben erhalten)
+      - ./output:/app/output
+      # Logs
+      - ./logs:/app/logs
+      # Config (optional, für Anpassungen)
+      - ./config:/app/config
+      # Community-Daten
+      - ./community:/app/community
+    environment:
+      - FLASK_ENV=production
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-me-in-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TESSERACT_CMD=/usr/bin/tesseract
+      - OCR_ENABLED=true
+      - OCR_LANG=deu+eng
+    restart: unless-stopped
+    networks:
+      - pdfdoc-network
+
+networks:
+  pdfdoc-network:
+    driver: bridge
+
+# Verwendung:
+#   docker-compose up -d          # Starten im Hintergrund
+#   docker-compose logs -f        # Logs anzeigen
+#   docker-compose down           # Stoppen
+#   docker-compose exec pdfdoc bash  # Shell in Container
