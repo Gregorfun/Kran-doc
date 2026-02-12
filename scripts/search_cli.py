@@ -30,10 +30,9 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE_DIR))
 
 from scripts.semantic_index import has_embedding_index, search_similar  # type: ignore[import]
-from scripts.config_loader import get_config  # type: ignore[import]
 
 
-def print_result(result: dict, index: int) -> None:
+def print_result(result: dict, index: int, show_text: bool = False) -> None:
     """
     Gibt einen einzelnen Treffer hübsch auf der Konsole aus.
     """
@@ -80,6 +79,13 @@ def print_result(result: dict, index: int) -> None:
     if not any([code, blatt, wagon, stecker, addr, short_text, area, group, has_long, has_desc]):
         print("  (Keine detaillierten Metadaten vorhanden.)")
 
+    if show_text:
+        text = (result.get("text") or "").strip()
+        if text:
+            wrapped_text = textwrap.fill(text, width=76, subsequent_indent=" " * 4)
+            print("  Text:")
+            print(f"    {wrapped_text}")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -110,8 +116,28 @@ def main() -> None:
         default=5,
         help="Anzahl der Treffer (Standard: 5)",
     )
+    parser.add_argument(
+        "--min-score",
+        dest="min_score",
+        type=float,
+        default=None,
+        help="Optionaler Mindest-Score (0.0 bis 1.0)",
+    )
+    parser.add_argument(
+        "--show-text",
+        action="store_true",
+        help="Zeigt zusätzlich den vollständigen Chunk-Text pro Treffer an",
+    )
 
     args = parser.parse_args()
+
+    if args.top_k <= 0:
+        print("--top-k muss größer als 0 sein.")
+        sys.exit(2)
+
+    if args.min_score is not None and not (-1.0 <= args.min_score <= 1.0):
+        print("--min-score muss zwischen -1.0 und 1.0 liegen.")
+        sys.exit(2)
 
     if not has_embedding_index():
         print(
@@ -140,6 +166,8 @@ def main() -> None:
         print(f"  Modell-Filter    : {args.model}")
     if args.source_type:
         print(f"  Quellen-Filter   : {args.source_type}")
+    if args.min_score is not None:
+        print(f"  Mindest-Score    : {args.min_score:.3f}")
     print(f"  Anzahl Treffer   : {args.top_k}")
     print()
 
@@ -148,6 +176,7 @@ def main() -> None:
         top_k=args.top_k,
         model_filter=args.model,
         source_type_filter=args.source_type,
+        min_score=args.min_score,
     )
 
     if not results:
@@ -155,7 +184,7 @@ def main() -> None:
         return
 
     for idx, r in enumerate(results, start=1):
-        print_result(r, idx)
+        print_result(r, idx, show_text=args.show_text)
 
 
 if __name__ == "__main__":
