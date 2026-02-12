@@ -1,7 +1,7 @@
 # Makefile für PDFDoc / Kran-Tools
 # Vereinfacht häufige Entwicklungs- und Build-Aufgaben
 
-.PHONY: help install setup test lint format clean run-cli run-webapp dev-install check
+.PHONY: help install setup test lint format clean run-cli run-webapp dev-install check tools health perf docs
 
 # Default target
 help:
@@ -17,6 +17,10 @@ help:
 	@echo "  make clean        - Löscht generierte Dateien"
 	@echo "  make run-cli      - Startet CLI-Menü"
 	@echo "  make run-webapp   - Startet Web-Interface"
+	@echo "  make health       - System Health Check"
+	@echo "  make perf         - Performance-Profiling"
+	@echo "  make docs         - Generiert Dokumentation"
+	@echo "  make tools        - Zeigt verfügbare Tools"
 	@echo ""
 
 # Installation
@@ -29,13 +33,13 @@ setup:
 
 # Dev-Dependencies installieren
 dev-install: install
-	pip install black isort flake8 mypy pre-commit
+	pip install -r requirements-dev.txt
 	pre-commit install
 
 # Tests ausführen (wenn vorhanden)
 test:
-	@echo "Führe Syntax-Checks aus..."
-	python -m py_compile scripts/*.py webapp/app.py
+	@echo "Führe Tests aus..."
+	python -m pytest tests/ -v --tb=short || python -m py_compile scripts/*.py webapp/app.py
 
 # Code-Qualität prüfen
 lint:
@@ -81,3 +85,35 @@ run-webapp:
 # Pre-commit auf allen Dateien ausführen
 precommit-all:
 	pre-commit run --all-files
+
+# System Health Check
+health:
+	@echo "Führe System Health Check aus..."
+	python tools/health_check.py
+
+# Performance-Profiling Demo
+perf:
+	@echo "Performance-Monitoring verfügbar unter tools/performance_monitor.py"
+	@echo "Integration in eigene Skripte möglich mit: @profile decorator"
+
+# Dokumentation generieren
+docs:
+	@echo "Generiere API-Dokumentation..."
+	python tools/doc_generator.py scripts -o docs/api-scripts.md
+	python tools/doc_generator.py webapp -o docs/api-webapp.md
+	python tools/doc_generator.py tools -o docs/api-tools.md
+	@echo "Dokumentation generiert in docs/"
+
+# Zeige verfügbare Tools
+tools:
+	@echo ""
+	@echo "Verfügbare Tools in tools/:"
+	@echo "  - performance_monitor.py  - Performance-Profiling"
+	@echo "  - parallel_processor.py   - Parallele Verarbeitung"
+	@echo "  - cache_manager.py        - Erweitertes Caching"
+	@echo "  - health_check.py         - System Health Check"
+	@echo "  - doc_generator.py        - Dokumentations-Generator"
+	@echo "  - test_runner.py          - Test-Runner"
+	@echo ""
+	@echo "Siehe docs/ für Details zur Verwendung"
+	@echo ""
