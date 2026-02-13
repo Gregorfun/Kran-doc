@@ -49,8 +49,11 @@ from webapp.services.bmk_index_service import get_bmk_entry as get_bmk_entry_fro
 from webapp.services.bmk_search_service import bmk_search_all_models as svc_bmk_search_all_models
 from webapp.services.bmk_search_service import bmk_search_in_model as svc_bmk_search_in_model
 from webapp.services.bmk_search_service import parse_bmk_search_request, validate_bmk_search_request
+from webapp.services.audit_service import append_audit_event
 from webapp.services.bundle_service import cleanup_temp_file, list_bundles, prepare_temp_bundle_path
+from webapp.services.bundle_service import read_bundle_manifest, validate_bundle_compatibility, verify_bundle_signature
 from webapp.services.community_service import (
+    can_review,
     build_admin_dashboard_context,
     build_admin_list_context,
     build_submission_payload,
@@ -59,6 +62,7 @@ from webapp.services.community_service import (
     filter_approved_solutions,
     normalize_status_filter,
     parse_submission_form,
+    prioritize_pending_solutions,
     partition_review_lists,
     submission_access_error,
     validate_submission,
@@ -84,6 +88,12 @@ from webapp.services.feedback_service import (
 from webapp.services.fusion_service import format_fusion_results, parse_fusion_request_data
 from webapp.services.general_search_service import search_general as svc_search_general
 from webapp.services.home_service import compute_initial_bmk_state
+from webapp.services.insights_service import (
+    build_feedback_insights,
+    build_quick_help_cards,
+    compute_coverage_kpis,
+    load_feedback_entries,
+)
 from webapp.services.import_service import enqueue_pipeline_job_if_enabled, resolve_import_input
 from webapp.services.jobs_service import get_job_log_payload, get_job_status_payload
 from webapp.services.knowledge_service import (
@@ -112,6 +122,7 @@ from webapp.services.result_service import (
     normalize_list_field,
 )
 from webapp.services.search_flow_service import run_search_flow
+from webapp.services.search_explain_service import attach_search_explainability, confidence_summary
 from webapp.services.security_service import get_provided_api_key, is_api_key_valid, is_rate_limited
 from webapp.services.status_service import compute_system_status as svc_compute_system_status
 from webapp.services.user_service import find_user_by_email, find_user_by_id, seed_admin_user
@@ -418,7 +429,7 @@ def _admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         user = _current_user()
-        if not user or user.get("role") != "admin":
+        if not can_review(user=user):
             flash("Admin-Rechte erforderlich.", "error")
             return redirect(url_for("index"))
         return fn(*args, **kwargs)
@@ -923,6 +934,7 @@ def index():
     bmk_query = (request.args.get("bmk_query") or "").strip()
     bmk_model = (request.args.get("bmk_model") or "").strip()
     bmk_autorun = (request.args.get("bmk_autorun") or "").strip() == "1"
+    quick_help_cards = build_quick_help_cards(solutions=load_solutions(), limit=6)
     bmk_state = compute_initial_bmk_state(
         bmk_autorun=bmk_autorun,
         bmk_query=bmk_query,
@@ -951,6 +963,7 @@ def index():
         "index.html",
         system_status=ss,
         embedding_index_available=ss.get("embedding_index_available"),
+        quick_help_cards=quick_help_cards,
         initial_bmk_results=bmk_state["initial_bmk_results"],
         initial_bmk_status=bmk_state["initial_bmk_status"],
         initial_bmk_status_type=bmk_state["initial_bmk_status_type"],
@@ -1140,6 +1153,17 @@ def admin_user_approve(user_id: str):
 
     if result.get("ok"):
         save_users(users)
+        try:
+            append_audit_event(
+                base_dir=str(BASE_DIR),
+                event={
+                    "event": "admin_user_approve",
+                    "target_id": user_id,
+                    "actor_id": admin_user.get("user_id") if admin_user else None,
+                },
+            )
+        except Exception:
+            pass
     flash(result.get("flash_message"), result.get("flash_category") or "error")
     status_filter = result.get("status_filter") or "pending"
     return redirect(url_for("admin.admin_users", status=status_filter))
@@ -1170,6 +1194,17 @@ def admin_user_reject(user_id: str):
 
     if result.get("ok"):
         save_users(users)
+        try:
+            append_audit_event(
+                base_dir=str(BASE_DIR),
+                event={
+                    "event": "admin_user_reject",
+                    "target_id": user_id,
+                    "actor_id": admin_user.get("user_id") if admin_user else None,
+                },
+            )
+        except Exception:
+            pass
     flash(result.get("flash_message"), result.get("flash_category") or "error")
     status_filter = result.get("status_filter") or "pending"
     return redirect(url_for("admin.admin_users", status=status_filter))
@@ -1211,6 +1246,17 @@ def admin_solution_approve(solution_id: str):
 
     if result.get("ok"):
         save_solutions(solutions)
+        try:
+            append_audit_event(
+                base_dir=str(BASE_DIR),
+                event={
+                    "event": "admin_solution_approve",
+                    "target_id": solution_id,
+                    "actor_id": admin_user.get("user_id") if admin_user else None,
+                },
+            )
+        except Exception:
+            pass
     flash(result.get("flash_message"), result.get("flash_category") or "error")
     status_filter = result.get("status_filter") or "pending"
     return redirect(url_for("admin.admin_solutions", status=status_filter))
@@ -1241,6 +1287,17 @@ def admin_solution_reject(solution_id: str):
 
     if result.get("ok"):
         save_solutions(solutions)
+        try:
+            append_audit_event(
+                base_dir=str(BASE_DIR),
+                event={
+                    "event": "admin_solution_reject",
+                    "target_id": solution_id,
+                    "actor_id": admin_user.get("user_id") if admin_user else None,
+                },
+            )
+        except Exception:
+            pass
     flash(result.get("flash_message"), result.get("flash_category") or "error")
     status_filter = result.get("status_filter") or "pending"
     return redirect(url_for("admin.admin_solutions", status=status_filter))
@@ -1249,10 +1306,12 @@ def admin_solution_reject(solution_id: str):
 @_admin_required
 def community_review():
     solutions = load_solutions()
+    feedback_entries = load_feedback_entries(base_dir=str(BASE_DIR), limit=5000)
     pending, approved, rejected = partition_review_lists(
         solutions=solutions,
         solution_status=_solution_status,
     )
+    pending = prioritize_pending_solutions(solutions=pending, feedback_entries=feedback_entries)
     return render_template(
         "community_review.html",
         pending=pending,
@@ -1282,6 +1341,17 @@ def community_approve(solution_id: str):
 
     if result.get("ok"):
         save_solutions(solutions)
+        try:
+            append_audit_event(
+                base_dir=str(BASE_DIR),
+                event={
+                    "event": "community_solution_approve",
+                    "target_id": solution_id,
+                    "actor_id": user.get("user_id") if user else None,
+                },
+            )
+        except Exception:
+            pass
     flash(result.get("flash_message"), result.get("flash_category") or "error")
     return redirect(url_for("admin.community_review"))
 
@@ -1312,6 +1382,17 @@ def community_reject(solution_id: str):
 
     if result.get("ok"):
         save_solutions(solutions)
+        try:
+            append_audit_event(
+                base_dir=str(BASE_DIR),
+                event={
+                    "event": "community_solution_reject",
+                    "target_id": solution_id,
+                    "actor_id": user.get("user_id") if user else None,
+                },
+            )
+        except Exception:
+            pass
     flash(result.get("flash_message"), result.get("flash_category") or "error")
     return redirect(url_for("admin.community_review"))
 
@@ -1402,13 +1483,47 @@ def api_search():
         status = int(flow_result.get("status") or 500)
         return jsonify({"ok": False, "error": flow_result.get("error") or "Unbekannter Fehler"}), status
 
+    results = attach_search_explainability(results=flow_result.get("results") or [])
+    general_results = attach_search_explainability(results=flow_result.get("general_results") or [])
+    confidence = confidence_summary(results=results, threshold=0.6)
+    fallback_message = None
+    if confidence.get("fallback_recommended"):
+        fallback_message = "Keine sichere Antwort – bitte Diagnosepfad oder Community-Lösungen prüfen."
+
     return jsonify(
         {
             "ok": True,
-            "results": flow_result.get("results") or [],
-            "general_results": flow_result.get("general_results") or [],
+            "results": results,
+            "general_results": general_results,
+            "confidence": confidence,
+            "fallback_message": fallback_message,
         }
     )
+
+
+def api_insights_feedback():
+    entries = load_feedback_entries(base_dir=str(BASE_DIR), limit=5000)
+    insights = build_feedback_insights(feedback_entries=entries, solutions=load_solutions())
+    return jsonify({"ok": True, "insights": insights})
+
+
+def api_insights_coverage():
+    models_dir = get_models_dir()
+    model_names = [d.name for d in models_dir.iterdir() if d.is_dir()] if models_dir.exists() else []
+    coverage = compute_coverage_kpis(
+        model_names=sorted(model_names),
+        solutions=load_solutions(),
+        load_lec_index_for_model=lambda model_name: load_lec_index_for_model(
+            models_dir=str(get_models_dir()),
+            model=model_name,
+        ),
+    )
+    return jsonify({"ok": True, "coverage": coverage})
+
+
+def api_quick_help_cards():
+    cards = build_quick_help_cards(solutions=load_solutions(), limit=8)
+    return jsonify({"ok": True, "cards": cards})
 
 
 @app.route("/api/bmk_search", methods=["POST"])
@@ -1714,6 +1829,36 @@ def api_bundle_import():
     file.save(str(temp_path))
 
     try:
+        dry_run = str(request.args.get("dry_run") or "").strip().lower() in {"1", "true", "yes"}
+        manifest = read_bundle_manifest(bundle_path=temp_path)
+        compatibility = validate_bundle_compatibility(
+            manifest=manifest or {},
+            app_name=str(settings.app_name),
+            min_version="1.0",
+        )
+        if not compatibility.get("compatible"):
+            return jsonify(error="Bundle inkompatibel", compatibility=compatibility), 400
+
+        signing_secret = str(settings.api_key or "")
+        provided_signature = str(request.headers.get("X-Bundle-Signature") or "").strip()
+        if signing_secret and provided_signature:
+            if not verify_bundle_signature(
+                bundle_path=temp_path,
+                secret=signing_secret,
+                provided_signature=provided_signature,
+            ):
+                return jsonify(error="Invalid bundle signature"), 401
+
+        if dry_run:
+            return jsonify(
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "manifest": manifest,
+                    "compatibility": compatibility,
+                }
+            )
+
         result = import_bundle(temp_path)
         return jsonify(result)
     except Exception as e:
@@ -1816,6 +1961,9 @@ app.register_blueprint(
             "health": health,
             "api_search": api_search,
             "api_search_fusion": api_search_fusion,
+            "api_insights_feedback": api_insights_feedback,
+            "api_insights_coverage": api_insights_coverage,
+            "api_quick_help_cards": api_quick_help_cards,
         }
     )
 )

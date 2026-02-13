@@ -24,4 +24,16 @@ def create_search_blueprint(handlers: Dict[str, Callable[..., Any]]) -> Blueprin
     def api_search_fusion():
         return handlers["api_search_fusion"]()
 
+    @bp.route("/api/insights/feedback", methods=["GET"])
+    def api_insights_feedback():
+        return handlers["api_insights_feedback"]()
+
+    @bp.route("/api/insights/coverage", methods=["GET"])
+    def api_insights_coverage():
+        return handlers["api_insights_coverage"]()
+
+    @bp.route("/api/quick-help-cards", methods=["GET"])
+    def api_quick_help_cards():
+        return handlers["api_quick_help_cards"]()
+
     return bp

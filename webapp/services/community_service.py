@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import uuid
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -280,6 +281,35 @@ def build_admin_list_context(
         "items": sorted_items,
         "status_filter": status_filter,
     }
+
+
+def can_review(*, user: Optional[Dict[str, Any]]) -> bool:
+    if not user:
+        return False
+    role = str(user.get("role") or "").strip().lower()
+    return role in {"admin", "reviewer"}
+
+
+def prioritize_pending_solutions(*, solutions: List[Dict[str, Any]], feedback_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    code_mentions: Counter[str] = Counter()
+    for entry in feedback_entries:
+        result = entry.get("result") if isinstance(entry.get("result"), dict) else {}
+        meta = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+        code = meta.get("error_code") or meta.get("code")
+        if code:
+            code_mentions[str(code).upper()] += 1
+
+    enriched: List[Dict[str, Any]] = []
+    for solution in solutions:
+        if (solution.get("status") or "").strip().lower() != "pending":
+            continue
+        code = str(solution.get("error_code") or "").upper()
+        priority = code_mentions.get(code, 0)
+        row = dict(solution)
+        row["review_priority"] = int(priority)
+        enriched.append(row)
+
+    return sorted(enriched, key=lambda s: (int(s.get("review_priority") or 0), str(s.get("created_at") or "")), reverse=True)
 
 
 def execute_simple_review_action(
