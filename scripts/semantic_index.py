@@ -8,13 +8,11 @@ Lokaler Embedding-Index + Suchfunktion für PDFDoc / Kran-Tools.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
 from functools import lru_cache
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
-
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 EMB_DIR = BASE_DIR / "output" / "embeddings"
@@ -28,8 +26,24 @@ def has_embedding_index() -> bool:
 
 
 @lru_cache(maxsize=1)
-def _load_model() -> SentenceTransformer:
-    return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+def _load_model():
+    """Lazy-load SentenceTransformer to keep webapp startup fast.
+
+    Importing sentence_transformers pulls in torch/transformers which can be slow
+    (especially on Windows). We only load the model when semantic search is used.
+    """
+
+    try:
+        from sentence_transformers import SentenceTransformer  # type: ignore
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(
+            "sentence-transformers ist nicht installiert/ladbar. " "Installiere es oder deaktiviere Semantic Search."
+        ) from exc
+
+    import os
+
+    model_name = os.environ.get("KRANDOC_EMBEDDING_MODEL") or "sentence-transformers/all-MiniLM-L6-v2"
+    return SentenceTransformer(model_name)
 
 
 @lru_cache(maxsize=1)
@@ -149,15 +163,54 @@ def search_similar(
         if source_type_filter_norm and stype != source_type_filter_norm:
             continue
 
-        results.append({
-            "model": mname,
-            "source_type": stype,
-            "metadata": meta,
-            "text": text,
-            "score": float(sims[idx]),
-        })
+        results.append(
+            {
+                "model": mname,
+                "source_type": stype,
+                "metadata": meta,
+                "text": text,
+                "score": float(sims[idx]),
+            }
+        )
 
         if len(results) >= top_k:
             break
 
     return results
+
+
+def warmup_semantic(load_index: Optional[bool] = None) -> Dict[str, Any]:
+    """Warm up semantic search components.
+
+    - Loads the embedding model (may trigger heavy imports: torch/transformers).
+    - Optionally loads the local embedding index.
+
+    Args:
+        load_index: If True, try to load the local index. If False, skip.
+            If None (default), load index only if it exists.
+
+    Returns:
+        A dict with status flags (safe to print/log).
+    """
+
+    info: Dict[str, Any] = {
+        "model_loaded": False,
+        "has_index": bool(has_embedding_index()),
+        "index_loaded": False,
+    }
+
+    # model warmup
+    _load_model()
+    info["model_loaded"] = True
+
+    # index warmup (optional)
+    should_load_index = info["has_index"] if load_index is None else bool(load_index)
+    if should_load_index:
+        try:
+            _load_index()
+            info["index_loaded"] = True
+        except Exception as exc:
+            info["index_loaded"] = False
+            info["index_error"] = str(exc)
+
+    return info

@@ -13,11 +13,11 @@
       <h1>Admin User Review</h1>
       <p>Ansicht: {{ status_filter }}</p>
       <div class="actions-grid">
-        <a class="btn" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
-        <a class="btn" href="{{ url_for('admin_users', status='pending') }}">Pending</a>
-        <a class="btn" href="{{ url_for('admin_users', status='approved') }}">Approved</a>
-        <a class="btn" href="{{ url_for('admin_users', status='rejected') }}">Rejected</a>
-        <a class="btn" href="{{ url_for('admin_users', status='all') }}">Alle</a>
+        <a class="btn" href="{{ url_for('admin.admin_dashboard') }}">Dashboard</a>
+        <a class="btn" href="{{ url_for('admin.admin_users', status='pending') }}">Pending</a>
+        <a class="btn" href="{{ url_for('admin.admin_users', status='approved') }}">Approved</a>
+        <a class="btn" href="{{ url_for('admin.admin_users', status='rejected') }}">Rejected</a>
+        <a class="btn" href="{{ url_for('admin.admin_users', status='all') }}">Alle</a>
       </div>
     </header>
 
@@ -53,12 +53,14 @@
                 <td>{{ u.email }}</td>
                 <td>{{ u.status or 'approved' }}</td>
                 <td>
-                  <form method="post" action="{{ url_for('admin_user_approve', user_id=u.user_id) }}">
+                  <form method="post" action="{{ url_for('admin.admin_user_approve', user_id=u.user_id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="status" value="{{ status_filter }}">
                     <input type="text" name="decision_note" placeholder="Notiz (optional)">
                     <button class="btn" type="submit">Approve</button>
                   </form>
-                  <form method="post" action="{{ url_for('admin_user_reject', user_id=u.user_id) }}">
+                  <form method="post" action="{{ url_for('admin.admin_user_reject', user_id=u.user_id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="status" value="{{ status_filter }}">
                     <input type="text" name="decision_note" placeholder="Begründung" required>
                     <button class="btn" type="submit">Reject</button>

@@ -21,14 +21,15 @@
             <span class="status-warn">Account wartet auf Freigabe.</span>
           {% endif %}
           {% if is_admin %}
-            <a class="btn" href="{{ url_for('admin_dashboard') }}">Admin</a>
+            <a class="btn" href="{{ url_for('admin.admin_dashboard') }}">Admin</a>
           {% endif %}
-          <form method="post" action="{{ url_for('account_logout') }}">
+          <form method="post" action="{{ url_for('auth.account_logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn" type="submit">Logout</button>
           </form>
         {% else %}
-          <a class="btn" href="{{ url_for('account_login', next=request.path) }}">Login</a>
-          <a class="btn" href="{{ url_for('account_register', next=request.path) }}">Registrieren</a>
+          <a class="btn" href="{{ url_for('auth.account_login', next=request.path) }}">Login</a>
+          <a class="btn" href="{{ url_for('auth.account_register', next=request.path) }}">Registrieren</a>
         {% endif %}
       </div>
     </header>

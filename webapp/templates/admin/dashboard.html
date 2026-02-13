@@ -14,9 +14,10 @@
       <p>Übersicht der offenen Freigaben.</p>
       <div class="actions-grid">
         <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
-        <a class="btn" href="{{ url_for('admin_users', status='pending') }}">User</a>
-        <a class="btn" href="{{ url_for('admin_solutions', status='pending') }}">Lösungen</a>
-        <form method="post" action="{{ url_for('account_logout') }}">
+        <a class="btn" href="{{ url_for('admin.admin_users', status='pending') }}">User</a>
+        <a class="btn" href="{{ url_for('admin.admin_solutions', status='pending') }}">Lösungen</a>
+        <form method="post" action="{{ url_for('auth.account_logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn" type="submit">Logout</button>
         </form>
       </div>
@@ -38,14 +39,14 @@
           <div class="status-label">Pending User</div>
           <div class="status-value">{{ pending_users_count }}</div>
           <div class="status-sub">
-            <a class="btn" href="{{ url_for('admin_users', status='pending') }}">User prüfen</a>
+            <a class="btn" href="{{ url_for('admin.admin_users', status='pending') }}">User prüfen</a>
           </div>
         </div>
         <div class="status-card">
           <div class="status-label">Pending Lösungen</div>
           <div class="status-value">{{ pending_solutions_count }}</div>
           <div class="status-sub">
-            <a class="btn" href="{{ url_for('admin_solutions', status='pending') }}">Lösungen prüfen</a>
+            <a class="btn" href="{{ url_for('admin.admin_solutions', status='pending') }}">Lösungen prüfen</a>
           </div>
         </div>
       </div>

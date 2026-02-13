@@ -1,54 +1,244 @@
-# PDFDoc / Kran-Tools
+# Kran-Doc 🏗️
 
-**Automatisierte Extraktion und Verwaltung von Kranendokumentation aus PDF-Dateien**
+**KI-gestützte Informationsplattform für Mobilkran-Servicetechniker**
 
 ## Aktuelle Version
-**v0.5.0**
+**v2.0.0-beta** 🚀 *Major AI Upgrade*
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/flask-3.1+-green.svg)](https://flask.palletsprojects.com/)
+[![Docling](https://img.shields.io/badge/docling-2.22-orange.svg)](https://github.com/docling-project/docling)
+[![Qdrant](https://img.shields.io/badge/qdrant-1.14-red.svg)](https://qdrant.tech/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Überblick
+---
 
-PDFDoc / Kran-Tools ist eine Python-basierte Anwendung zur automatischen Extraktion und Analyse von technischen Dokumentationen für Liebherr-Krane. Das System verarbeitet verschiedene PDF-Dokumenttypen (Fehlercodes, Schaltpläne, BMK-Listen, Handbücher) und erstellt strukturierte Wissensmodule.
+## 🌟 Was ist Kran-Doc?
 
-### Hauptfunktionen
+Kran-Doc ist eine **vollständig lokale, KI-gestützte Dokumentenplattform** für Servicetechniker, Monteure und Werkstätten im Mobilkran-Bereich. Das System verarbeitet PDF-Dokumente (LEC-Fehlercodes, SPL-Stromlaufpläne, BMK-Bauteillisten, Bedienungsanleitungen) **automatisch** und macht sie **semantisch durchsuchbar**.
 
-- 📄 **PDF-Parsing**: Automatische Extraktion von Fehlercodes (LEC), Schaltplänen (SPL), BMK-Listen
-- 🧠 **Wissensmodule**: Strukturierte JSON-basierte Wissensrepräsentation pro Kranmodell
-- 🔍 **Semantische Suche**: Embedding-basierte Suche in technischer Dokumentation
-- 🌐 **Web-Interface**: Flask-basierte Weboberfläche für einfache Bedienung
-- 📊 **Report-Generierung**: Automatische Erstellung von Übersichten und Indizes
-- 🤖 **Community-Lösungen**: Verwaltung und Review von Lösungsvorschlägen
+### ✨ Neue Features in v2.0
 
-## Letzte Änderungen
+🤖 **Fortgeschrittene KI-Verarbeitung**
+- Docling für Layout & Tabellen-Erkennung
+- PaddleOCR für State-of-the-Art Texterkennung
+- Automatische Dokumentstrukturierung
 
-Siehe [CHANGELOG.md](CHANGELOG.md) für eine vollständige Liste der Änderungen.
+🔍 **Semantische Vektorsuche**
+- Qdrant Vector Database Integration
+- Embedding-basierte Suche mit Sentence-Transformers
+- Findet relevante Infos auch ohne exakte Stichwörter
 
-## Schnellstart
+📊 **Strukturierte Datenmodelle**
+- Pydantic-basierte Validierung
+- Typsichere APIs
+- Einheitliche Datenformate
 
-### Voraussetzungen
+🐳 **Production-Ready Deployment**
+- Docker Compose Stack
+- Monitoring mit Grafana + Prometheus
+- Skalierbar & wartbar
 
-- Python 3.8 oder höher
-- Tesseract OCR (optional, für OCR-Funktionalität)
-- 4 GB RAM (empfohlen 8 GB für Embeddings)
+🌍 **Vollständig Offline-fähig**
+- Keine Cloud-Abhängigkeit
+- Alle Modelle lokal
+- Funktioniert in Werkstatt & Baustelle
 
-### Installation
+---
 
-1. **Repository klonen**
-   ```bash
-   git clone https://github.com/Gregorfun/Kran-doc.git
-   cd Kran-doc
-   ```
+## 🚀 Quick Start
 
-2. **Virtuelle Umgebung erstellen**
-   ```bash
-   python -m venv venv
-   
-   # Windows
-   venv\Scripts\activate
-   
+### Option 1: Docker (Empfohlen)
+### Option 1: Docker (Empfohlen)
+
+```bash
+# Klonen
+git clone https://github.com/Gregorfun/Kran-doc.git
+cd Kran-doc/kran-tools
+
+# Starten
+docker-compose -f docker-compose.production.yml up -d
+
+# Öffne Browser
+# http://localhost:5002
+```
+
+### Option 2: Lokale Installation
+
+```bash
+# Klonen
+git clone https://github.com/Gregorfun/Kran-doc.git
+cd Kran-doc/kran-tools
+
+# Virtuelle Umgebung
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Dependencies
+pip install -r requirements-full.txt
+
+# Starten
+python webapp/app.py
+```
+
+**👉 Detaillierte Anleitungen:** [docs/INSTALLATION.md](docs/INSTALLATION.md)
+
+---
+
+## 🏗️ Architektur
+
+```
+┌─────────────────────────────────────────────────┐
+│              KRAN-DOC PLATFORM                  │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  PDF/TIFF → OCR → Docling → Chunks → Qdrant   │
+│                     ↓                           │
+│              Haystack RAG                       │
+│                     ↓                           │
+│              Flask Web-App                      │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+**Technologie-Stack:**
+- **Document Processing:** Docling, Unstructured, PaddleOCR
+- **Vector Database:** Qdrant (lokal oder Server)
+- **Embeddings:** Sentence-Transformers
+- **RAG:** Haystack (Q2 2026)
+- **Web:** Flask + Bootstrap
+- **Deployment:** Docker + Docker Compose
+
+**👉 Details:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+---
+
+## 📚 Dokumentation
+
+| Dokument | Beschreibung |
+|----------|--------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System-Design & Pipeline |
+| [INSTALLATION.md](docs/INSTALLATION.md) | Installation für alle Szenarien |
+| [ROADMAP.md](docs/ROADMAP.md) | Entwicklungs-Roadmap 2026-2027 |
+| [IMPLEMENTATION_SUMMARY.md](docs/IMPLEMENTATION_SUMMARY.md) | v2.0 Feature-Übersicht |
+| [CHANGELOG.md](CHANGELOG.md) | Versionshistorie |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution Guidelines |
+
+---
+
+## 🎯 Use Cases
+
+### Für Servicetechniker
+
+**Problem:** "LEC-12345 wird angezeigt - was ist das?"
+
+```
+🔍 Kran-Doc Suche: "LEC-12345"
+
+📋 Ergebnis:
+   Code: LEC-12345
+   Beschreibung: Hydraulikdrucksensor defekt
+   System: Hydraulik
+   Severity: ⚠️ Critical
+
+   🔧 Lösungen:
+   1. Sensor-Verkabelung prüfen
+   2. Kontakte reinigen
+   3. Sensor tauschen (Teil: 12345-ABC)
+
+   📄 Quellen: Manual_LTM1070_v3.pdf S. 42
+```
+
+### Für Werkstätten
+
+**Problem:** "Wo ist Komponente B1-M1?"
+
+```
+🔍 Kran-Doc Suche: "B1-M1 Ort"
+
+📍 Ergebnis:
+   BMK: B1-M1
+   Typ: Motor (Hauptantrieb)
+   Ort: Hauptschaltschrank, Reihe 1, Position 3
+   Spannung: 400V AC
+
+   🗺️ Schaltplan: SPL-001, Seite 15
+   📷 [Bild des Schaltschranks]
+```
+
+### Für Monteure
+
+**Problem:** "Welche Lösungen gibt es für Hydraulik-Druckprobleme?"
+
+```
+🔍 Kran-Doc Suche: "Hydraulik Druck Problem Lösung"
+
+💡 Community-Lösungen (Top 3):
+   1. ⭐⭐⭐⭐⭐ (15 Votes)
+      "Intermittierender Drucksensor-Fehler"
+      Zeitaufwand: 45 Min | Schwierigkeit: Mittel
+
+   2. ⭐⭐⭐⭐ (8 Votes)  
+      "Hydrauliköl-Verschmutzung durch Filter"
+      ...
+```
+
+---
+
+## 🚀 Neue Features in v2.0
+
+### 1. Docling Integration
+
+```python
+from scripts.docling_processor import DoclingProcessor
+
+processor = DoclingProcessor()
+result = processor.process_pdf("manual.pdf")
+
+# Layout-Erkennung, Tabellen-Extraktion, Strukturierte Ausgabe
+```
+
+### 2. Advanced OCR
+
+```python
+from scripts.ocr_processor import OCRProcessor
+
+ocr = OCRProcessor()
+result = ocr.process_image("scan.jpg")
+
+print(f"Text: {result.text}")
+print(f"Confidence: {result.confidence:.2%}")
+```
+
+### 3. Vector Search
+
+```python
+from scripts.qdrant_manager import QdrantVectorDB, LECErrorManager
+
+db = QdrantVectorDB()
+lec_manager = LECErrorManager(db)
+
+# Semantische Suche
+results = lec_manager.search_error("Hydraulik Problem")
+```
+
+### 4. Structured Data Models
+
+```python
+from scripts.data_models import LECErrorCode, BMKComponent
+
+lec = LECErrorCode(
+    code="LEC-12345",
+    description="Hydraulikdrucksensor defekt",
+    severity="critical",
+    solutions=["Sensor prüfen", "Verkabelung checken"]
+)
+```
+
+---
+
+## 🛠️ Entwicklung
+
    # Linux/Mac
    source venv/bin/activate
    ```
@@ -96,7 +286,7 @@ Das interaktive Menü bietet folgende Optionen:
 python webapp/app.py
 ```
 
-Dann Browser öffnen: `http://localhost:5000`
+Dann Browser öffnen: `http://localhost:5002`
 
 #### Einzelne Skripte
 
@@ -218,11 +408,11 @@ Neue Parser sollten folgendes Interface implementieren:
 def process_pdf(pdf_path: Path, output_dir: Path) -> Dict[str, Any]:
     """
     Verarbeitet ein PDF und gibt strukturierte Daten zurück.
-    
+
     Args:
         pdf_path: Pfad zum PDF
         output_dir: Ausgabeverzeichnis
-        
+
     Returns:
         Strukturierte Daten als Dict
     """

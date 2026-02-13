@@ -14,7 +14,8 @@
       <p>Freigabe / Ablehnung von Community-Lösungen.</p>
       <div class="actions-grid">
         <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
-        <form method="post" action="{{ url_for('account_logout') }}">
+        <form method="post" action="{{ url_for('auth.account_logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn" type="submit">Logout</button>
         </form>
       </div>
@@ -45,7 +46,8 @@
               {{ s.model }} · {{ s.error_code }} · von {{ s.created_display_name }} · {{ s.created_at }}
             </div>
 
-            <form method="post" action="{{ url_for('community_approve', solution_id=s.solution_id) }}">
+            <form method="post" action="{{ url_for('admin.community_approve', solution_id=s.solution_id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <div class="admin-review-grid">
                 <div>
                   <label class="field-label" for="model-{{ s.solution_id }}">Modell</label>
@@ -89,7 +91,8 @@
               </div>
             </form>
 
-            <form method="post" action="{{ url_for('community_reject', solution_id=s.solution_id) }}" class="admin-review-actions">
+            <form method="post" action="{{ url_for('admin.community_reject', solution_id=s.solution_id) }}" class="admin-review-actions">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <label class="field-label" for="reject-{{ s.solution_id }}">Ablehnung (Begründung erforderlich)</label>
               <input id="reject-{{ s.solution_id }}" name="decision_note" type="text" required placeholder="Warum wird abgelehnt?">
               <button class="btn danger" type="submit">Ablehnen</button>

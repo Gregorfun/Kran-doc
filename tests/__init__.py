@@ -1,0 +1,6 @@
+"""
+Tests Module
+============
+
+pytest configuration
+"""

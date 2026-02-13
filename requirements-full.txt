@@ -1,0 +1,279 @@
+# ============================================================
+# PDFDoc / Kran-Tools - Python Dependencies v2.0
+# Erweitert mit KI-Tools für fortgeschrittene Dokumentenverarbeitung
+# ============================================================
+
+aiofiles==24.1.0
+
+# Code Quality (Development)
+black==24.10.0
+camelot-py==0.11.0  # Tabellen-Extraktion
+
+# Message Queue (optional)
+celery==5.5.0
+certifi==2025.11.12
+cffi==2.0.0
+charset-normalizer==3.4.4
+
+# Chroma - Lightweight Alternative für Tests
+chromadb==0.5.30
+click==8.3.1
+
+# CLI Enhancements
+colorama==0.4.6
+
+# Cryptography
+cryptography==46.0.3
+
+# Caching
+diskcache==5.6.3
+
+# ============================================================
+# NEW: DOCUMENT UNDERSTANDING & AI PARSING
+# ============================================================
+
+# Docling - Hauptparser für PDF Layout/Tabellen
+docling==2.22.4
+docling-core==2.2.1
+docling-ibm-models==2.1.6
+
+# EasyOCR - Lightweight Alternative (optional)
+easyocr==1.7.2
+farm-haystack==1.27.0  # Legacy Support
+
+# API Documentation
+fastapi==0.116.1  # Falls REST API gewünscht
+filelock==3.20.0
+flake8==7.1.1
+# --- Core Dependencies ---
+Flask==3.1.2
+
+# ============================================================
+# UTILITIES (Enhanced)
+# ============================================================
+
+# File Operations
+fsspec==2025.12.0
+ftfy==6.3.3  # Text-Cleaning
+
+# Document Similarity
+fuzzywuzzy==0.18.0
+grpcio==1.71.1  # Für Qdrant gRPC
+grpcio-tools==1.71.1
+
+# Optional: Weaviate Client
+# weaviate-client==4.10.2
+
+# ============================================================
+# NEW: RAG FRAMEWORKS
+# ============================================================
+
+# Haystack - Haupt-RAG-Framework
+haystack-ai==2.11.0
+
+# Hugging Face Integration
+huggingface-hub==0.36.0
+idna==3.11
+imageio==2.37.0
+isort==5.13.2
+itsdangerous==2.2.0
+Jinja2==3.1.6
+joblib==1.5.2
+
+# Label Studio SDK - Annotation
+label-studio-sdk==1.1.4
+
+# LangChain - Tool-Orchestrierung (optional)
+langchain==0.3.26
+langchain-community==0.3.26
+langchain-core==0.3.63
+
+# Document Layout Analysis
+layoutparser==0.3.4
+
+# LlamaIndex - Alternative (optional)
+llama-index==0.12.20
+llama-index-core==0.12.20
+llama-index-embeddings-huggingface==0.4.4
+llama-index-vector-stores-qdrant==0.5.1
+
+# Logging
+loguru==0.7.3  # Besseres Logging
+MarkupSafe==3.0.3
+
+# Plotting
+matplotlib==3.10.0
+
+# ============================================================
+# NEW: ML LIFECYCLE & MONITORING
+# ============================================================
+
+# MLflow - Experiment Tracking
+mlflow==2.20.6
+multiprocess==0.70.18
+mypy==1.14.1
+
+# Graph Database (optional)
+neo4j==5.29.2  # Falls Komponenten-Graphen gewünscht
+
+# Networking
+networkx==3.6.1
+
+# Numerical Computing
+numpy==2.2.6
+
+# OCRmyPDF - Fügt gescannten PDFs Searchable Text hinzu
+ocrmypdf==16.9.4
+omegaconf==2.3.0  # Hierarchische Configs
+opencv-python==4.12.0.88
+
+# Packaging
+packaging==25.0
+
+# ============================================================
+# NEW: ADVANCED OCR
+# ============================================================
+
+# PaddleOCR - State-of-the-art OCR
+paddleocr==2.9.1
+paddlepaddle==3.0.0b2
+pandas==2.2.4  # Für Datenverarbeitung
+pdf2image==1.17.0
+
+# Text Extraction
+pdfplumber==0.11.7
+pdfrw==0.4
+pillow==12.0.0
+plotly==5.26.3
+
+# Prometheus Client - Metriken
+prometheus-client==0.22.0
+
+# Health Monitoring
+psutil==6.1.1
+pycparser==2.23
+
+# ============================================================
+# NEW: DATA VALIDATION & MODELS
+# ============================================================
+
+# Pydantic - Datenvalidierung
+pydantic==2.10.6
+pydantic==2.10.6
+pydantic-settings==2.8.2
+
+# --- PDF Processing (Existing) ---
+pypdf==6.4.1
+
+# ============================================================
+# ADDITIONAL INTEGRATIONS
+# ============================================================
+
+# PDF Metadata
+PyPDF2==3.0.1
+pypdfium2==5.1.0
+pytesseract==0.3.13
+
+# Testing (Development)
+pytest==8.3.5
+pytest-asyncio==0.25.4
+pytest-cov==7.0.0
+
+# Date/Time
+python-dateutil==2.10.0
+
+# Configuration
+python-dotenv==1.0.1
+python-Levenshtein==0.27.3
+pytz==2025.1
+PyYAML==6.0.3
+
+# SURYA - Vision-Transformer OCR (optional, sehr groß)
+# surya-ocr==0.6.3
+
+# ============================================================
+# NEW: VECTOR DATABASE & SEMANTIC SEARCH
+# ============================================================
+
+# Qdrant - Primäre Vektor-Datenbank
+qdrant-client==1.14.3
+redis==5.2.2  # Optional für verteiltes Caching
+redis==5.2.2
+
+# Text Processing
+regex==2025.11.3
+requests==2.32.5
+rich==13.9.6  # Schöne Terminal-Ausgabe
+safetensors==0.7.0
+
+# Image Processing (erweitert)
+scikit-image==0.25.2
+
+# ML Utilities
+scikit-learn==1.8.0
+scipy==1.16.3
+seaborn==0.13.3
+
+# ============================================================
+# MACHINE LEARNING / NLP (Enhanced)
+# ============================================================
+
+# Embeddings & Semantic Search
+sentence-transformers==5.1.2
+sqlalchemy==2.0.39
+
+# SQLModel - DB-Integration (optional)
+sqlmodel==0.0.25
+
+# ============================================================
+# NEW: VISUALIZATION & DEBUGGING
+# ============================================================
+
+# Streamlit - Debug UI
+streamlit==1.42.1
+streamlit-aggrid==1.1.4
+tabula-py==2.11.0
+
+# Concurrent Processing
+threadpoolctl==3.6.0
+tokenizers==0.22.1
+
+# Deep Learning
+torch==2.9.1
+torchvision==0.21.1  # Für Vision-Modelle
+
+# Progress Tracking
+tqdm==4.67.1
+transformers==4.57.3
+typer==0.16.1  # Bessere CLI
+
+# Type Hints
+typing_extensions==4.15.0
+
+# Unstructured - Fallback für exotische Formate
+unstructured==0.17.9
+unstructured-inference==0.8.7
+unstructured-pytesseract==0.3.13
+urllib3==2.6.3
+uvicorn==0.35.2
+Werkzeug==3.1.4
+
+# ============================================================
+# NOTES
+# ============================================================
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# Für GPU-Support (CUDA):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#   pip install paddlepaddle-gpu
+#
+# Für minimale Installation (nur Core):
+#   pip install -r requirements-minimal.txt
+#
+# Memory-Empfehlungen:
+#   - Basis-System: 4 GB RAM
+#   - Mit Embeddings: 8 GB RAM
+#   - Mit LLMs: 16+ GB RAM
+#

@@ -2,24 +2,57 @@
 # PDFDoc / Kran-Tools - Python Dependencies
 # ============================================================
 
+
+# Binary linker utilities
+blinker==1.9.0
+certifi==2025.11.12
+cffi==2.0.0
+charset-normalizer==3.4.4
+click==8.3.1
+
+# Color output for CLI
+colorama==0.4.6
+
+# Cryptography (for secure operations)
+cryptography==46.0.3
+
+# File locking for concurrent access
+filelock==3.20.0
 # --- Core Dependencies ---
 # Web framework for the application
 Flask==3.1.2
-Werkzeug==3.1.4
-Jinja2==3.1.6
-MarkupSafe==3.0.3
-itsdangerous==2.2.0
-click==8.3.1
 
-# YAML configuration parsing
-PyYAML==6.0.3
+# --- Utilities ---
+# File system operations
+fsspec==2025.12.0
 
-# HTTP requests (for external APIs if needed)
-requests==2.32.5
-urllib3==2.6.3
-certifi==2025.11.12
-charset-normalizer==3.4.4
+# --- Hugging Face Integration ---
+# Model hub access
+huggingface-hub==0.36.0
 idna==3.11
+itsdangerous==2.2.0
+Jinja2==3.1.6
+joblib==1.5.2
+MarkupSafe==3.0.3
+mpmath==1.3.0
+
+# Networking and graphs (for dependency analysis)
+networkx==3.6.1
+
+# Numerical computing
+numpy==2.2.6
+
+# Image processing for OCR
+opencv-python==4.12.0.88
+
+# Packaging utilities
+packaging==25.0
+pillow==12.0.0
+pycparser==2.23
+
+# --- Configuration & Settings ---
+pydantic==2.10.4
+pydantic-settings==2.7.1
 
 # --- PDF Processing ---
 # PDF reading and text extraction
@@ -29,68 +62,53 @@ pypdfium2==5.1.0
 # OCR (Optical Character Recognition)
 pytesseract==0.3.13
 
-# Image processing for OCR
-opencv-python==4.12.0.88
-pillow==12.0.0
+# --- Testing ---
+pytest==8.3.4
+pytest-cov==6.0.0
 
-# --- Machine Learning / NLP ---
-# Semantic search and embeddings
-sentence-transformers==5.1.2
-transformers==4.57.3
-tokenizers==0.22.1
+# YAML configuration parsing
+PyYAML==6.0.3
 
-# Deep learning framework
-torch==2.9.1
+# --- Qdrant Vector Database (Optional) ---
+qdrant-client==1.12.2
+
+# --- Fuzzy Search ---
+rapidfuzz==3.12.0
+redis==5.2.1
+
+# Regular expressions (enhanced)
+regex==2025.11.3
+
+# HTTP requests (for external APIs if needed)
+requests==2.32.5
+
+# --- Job Queue (Optional but recommended for production) ---
+rq==2.2.0
 
 # Tensor storage and loading
 safetensors==0.7.0
 
 # ML utilities
 scikit-learn==1.8.0
-joblib==1.5.2
-
-# Numerical computing
-numpy==2.2.6
 scipy==1.16.3
-mpmath==1.3.0
+
+# --- Machine Learning / NLP ---
+# Semantic search and embeddings
+sentence-transformers==5.1.2
 sympy==1.14.0
-
-# Progress bars for long operations
-tqdm==4.67.1
-
-# --- Hugging Face Integration ---
-# Model hub access
-huggingface-hub==0.36.0
-
-# --- Utilities ---
-# File system operations
-fsspec==2025.12.0
-
-# File locking for concurrent access
-filelock==3.20.0
 
 # Threading utilities
 threadpoolctl==3.6.0
+tokenizers==0.22.1
+
+# Deep learning framework
+torch==2.9.1
+
+# Progress bars for long operations
+tqdm==4.67.1
+transformers==4.57.3
 
 # Type hints extensions
 typing_extensions==4.15.0
-
-# Networking and graphs (for dependency analysis)
-networkx==3.6.1
-
-# Packaging utilities
-packaging==25.0
-
-# Cryptography (for secure operations)
-cryptography==46.0.3
-cffi==2.0.0
-pycparser==2.23
-
-# Color output for CLI
-colorama==0.4.6
-
-# Regular expressions (enhanced)
-regex==2025.11.3
-
-# Binary linker utilities
-blinker==1.9.0
+urllib3==2.6.3
+Werkzeug==3.1.4

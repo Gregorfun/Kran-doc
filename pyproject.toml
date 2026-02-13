@@ -29,24 +29,75 @@ classifiers = [
 
 dependencies = [
     "Flask>=3.1.2",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.4.0",
     "pypdf>=6.4.1",
     "PyYAML>=6.0.3",
+    "numpy>=2.2.6",
+    "requests>=2.32.5",
+    "Werkzeug>=2.3.0",
+    "python-dotenv>=1.0.0",
+    "colorama>=0.4.6",
+]
+
+[project.optional-dependencies]
+# Minimal: just parsing and serving
+minimal = [
+    "pytesseract>=0.3.13",
+    "opencv-python>=4.12.0",
+    "pillow>=12.0.0",
+]
+
+# Full: with AI/ML features
+full = [
     "pytesseract>=0.3.13",
     "opencv-python>=4.12.0",
     "pillow>=12.0.0",
     "sentence-transformers>=5.1.2",
     "torch>=2.9.1",
-    "numpy>=2.2.6",
-    "requests>=2.32.5",
+    "qdrant-client>=1.12.2",
+    "docling>=2.22.0",
+    "paddleocr>=2.8.1.3",
+    "easyocr>=1.7.0",
 ]
 
-[project.optional-dependencies]
+# OCR engines (optional variants)
+ocr-paddle = [
+    "paddleocr>=2.8.1.3",
+    "paddlepaddle>=2.5.0",
+]
+
+ocr-easyocr = [
+    "easyocr>=1.7.0",
+]
+
+ocr-tesseract = [
+    "pytesseract>=0.3.13",
+]
+
+# Vector database
+qdrant = [
+    "qdrant-client>=1.12.2",
+    "sentence-transformers>=5.1.2",
+    "torch>=2.9.1",
+]
+
+# Development
 dev = [
     "black>=24.2.0",
     "isort>=5.13.2",
     "flake8>=7.0.0",
     "mypy>=1.8.0",
     "pre-commit>=3.6.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.1.0",
+]
+
+# Production
+prod = [
+    "gunicorn>=21.0.0",
+    "python-json-logger>=2.0.7",
 ]
 
 [project.urls]
@@ -54,9 +105,8 @@ Homepage = "https://github.com/Gregorfun/Kran-doc"
 Repository = "https://github.com/Gregorfun/Kran-doc"
 Issues = "https://github.com/Gregorfun/Kran-doc/issues"
 
-# Note: Console script entry point disabled until pdfdoc_cli.py is updated
-# [project.scripts]
-# pdfdoc-cli = "scripts.pdfdoc_cli:main"
+[project.scripts]
+pdfdoc = "scripts.pdfdoc_cli:main"
 
 [tool.black]
 line-length = 120
@@ -107,4 +157,33 @@ exclude = [
     ".venv",
     "build",
     "dist",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "--cov=. --cov-report=html --cov-report=term-missing --cov-fail-under=30 -v"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/site-packages/*",
+    "*/distutils/*",
+    "tests/*",
+    "setup.py",
+    ".venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
 ]

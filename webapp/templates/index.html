@@ -14,14 +14,15 @@
     <div class="actions-grid">
       {% if current_user %}
         {% if is_admin %}
-          <a class="btn" href="{{ url_for('admin_dashboard') }}">Admin</a>
+          <a class="btn" href="{{ url_for('admin.admin_dashboard') }}">Admin</a>
         {% endif %}
-        <form method="post" action="{{ url_for('account_logout') }}">
+        <form method="post" action="{{ url_for('auth.account_logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn" type="submit">Logout</button>
         </form>
       {% else %}
-        <a class="btn" href="{{ url_for('account_login') }}">Login</a>
-        <a class="btn" href="{{ url_for('account_register') }}">Registrieren</a>
+        <a class="btn" href="{{ url_for('auth.account_login') }}">Login</a>
+        <a class="btn" href="{{ url_for('auth.account_register') }}">Registrieren</a>
       {% endif %}
     </div>
 
@@ -958,7 +959,7 @@
         resultsEl.innerHTML = '';
         updateResultsState();
 
-        fetch('{{ url_for("api_search") }}', {
+        fetch('{{ url_for("search.api_search") }}', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1208,4 +1209,3 @@
 <script src="{{ url_for('static', filename='contact.js') }}?v=1.4"></script>
 </body>
 </html>
-

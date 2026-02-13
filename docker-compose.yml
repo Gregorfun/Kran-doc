@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile
     container_name: pdfdoc-kran-tools
     ports:
-      - "5000:5000"
+      - "5002:5002"
     volumes:
       # Input-Verzeichnisse (zum Hinzufügen von PDFs)
       - ./input:/app/input

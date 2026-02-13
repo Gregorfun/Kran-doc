@@ -15,10 +15,11 @@
       <div class="actions-grid">
         <a class="btn" href="{{ url_for('index') }}">Zur Startseite</a>
         {% if is_admin %}
-          <a class="btn" href="{{ url_for('admin_dashboard') }}">Admin</a>
+          <a class="btn" href="{{ url_for('admin.admin_dashboard') }}">Admin</a>
         {% endif %}
         {% if current_user %}
-          <form method="post" action="{{ url_for('account_logout') }}">
+          <form method="post" action="{{ url_for('auth.account_logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn" type="submit">Logout</button>
           </form>
         {% endif %}
@@ -45,6 +46,7 @@
         <p class="status-warn">{{ error }}</p>
       {% endif %}
       <form method="post" class="search-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="field-label" for="model">Modell</label>
         <input id="model" name="model" type="text" required value="{{ prefill_model }}">
 

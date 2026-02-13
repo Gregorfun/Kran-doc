@@ -1,0 +1,239 @@
+# ==================================================================
+# Kran-Doc Docker Compose - Production Stack v2.0
+# ==================================================================
+#
+# Enthält:
+# - Kran-Doc Web-App
+# - Qdrant Vector Database
+# - Optional: Docling-Serve
+# - Optional: Grafana + Prometheus Monitoring
+#
+# Verwendung:
+#   docker-compose -f docker-compose.production.yml up -d
+# ==================================================================
+
+version: '3.8'
+
+services:
+  # ==================================================================
+  # QDRANT VECTOR DATABASE
+  # ==================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: kran-doc-qdrant
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+    networks:
+      - kran-doc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================================================================
+  # KRAN-DOC APPLICATION
+  # ==================================================================
+  kran-doc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - INSTALL_PADDLE=true
+        - INSTALL_DOCLING=true
+    container_name: kran-doc-app
+    ports:
+      - "5002:5002"
+    volumes:
+      # Data Directories
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./community:/app/community
+
+      # Qdrant local storage (Fallback)
+      - ./data/qdrant:/app/data/qdrant
+
+      # Models Cache (persistieren, spart Download-Zeit)
+      - models_cache:/root/.cache/huggingface
+      - embeddings_cache:/root/.cache/torch
+    environment:
+      # Flask
+      - FLASK_ENV=production
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is required}
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5002
+      - KRANDOC_PIN=${KRANDOC_PIN:?KRANDOC_PIN is required}
+      - KRANDOC_ADMIN_EMAIL=${KRANDOC_ADMIN_EMAIL:?KRANDOC_ADMIN_EMAIL is required}
+      - KRANDOC_ADMIN_PASSWORD=${KRANDOC_ADMIN_PASSWORD:?KRANDOC_ADMIN_PASSWORD is required}
+
+      # Qdrant
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_USE_LOCAL=false
+
+      # OCR
+      - TESSERACT_CMD=/usr/bin/tesseract
+      - OCR_ENABLED=true
+      - OCR_LANG=deu+eng
+      - OCR_ENGINE=paddle
+
+      # Embeddings
+      - EMBEDDING_MODEL=paraphrase-multilingual-mpnet-base-v2
+      - EMBEDDING_DEVICE=cpu
+
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_TO_FILE=true
+
+      # Performance
+      - MAX_WORKERS=4
+      - BATCH_SIZE=32
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - kran-doc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================================================================
+  # DOCLING-SERVE (Optional - Auskommentiert)
+  # ==================================================================
+  # docling-serve:
+  #   image: docling/docling-serve:latest
+  #   container_name: kran-doc-docling
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - DOCLING_PORT=8080
+  #     - DOCLING_WORKERS=2
+  #   restart: unless-stopped
+  #   networks:
+  #     - kran-doc-network
+
+  # ==================================================================
+  # PROMETHEUS (Monitoring - Optional)
+  # ==================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: kran-doc-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - kran-doc-network
+    profiles:
+      - monitoring
+
+  # ==================================================================
+  # GRAFANA (Dashboards - Optional)
+  # ==================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: kran-doc-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - kran-doc-network
+    profiles:
+      - monitoring
+
+  # ==================================================================
+  # REDIS (Caching - Optional)
+  # ==================================================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: kran-doc-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - kran-doc-network
+  #   profiles:
+  #     - caching
+
+# ==================================================================
+# VOLUMES
+# ==================================================================
+volumes:
+  qdrant_storage:
+    driver: local
+
+  models_cache:
+    driver: local
+
+  embeddings_cache:
+    driver: local
+
+  prometheus_data:
+    driver: local
+
+  grafana_data:
+    driver: local
+
+  # redis_data:
+  #   driver: local
+
+# ==================================================================
+# NETWORKS
+# ==================================================================
+networks:
+  kran-doc-network:
+    driver: bridge
+
+# ==================================================================
+# VERWENDUNG
+# ==================================================================
+#
+# Basis-Stack (App + Qdrant):
+#   docker-compose -f docker-compose.production.yml up -d
+#
+# Mit Monitoring:
+#   docker-compose -f docker-compose.production.yml --profile monitoring up -d
+#
+# Logs ansehen:
+#   docker-compose -f docker-compose.production.yml logs -f kran-doc
+#
+# Services stoppen:
+#   docker-compose -f docker-compose.production.yml down
+#
+# Alles löschen (inkl. Volumes):
+#   docker-compose -f docker-compose.production.yml down -v
+#
+# Einzelnen Service neu starten:
+#   docker-compose -f docker-compose.production.yml restart kran-doc
+#
+# ==================================================================
