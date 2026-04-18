@@ -1,311 +1,256 @@
-# PDFDoc / Kran-Tools
+# 🏗️ Kran-Doc
 
-**Automatisierte Extraktion und Verwaltung von Kranendokumentation aus PDF-Dateien**
+**Open-source platform for parsing, structuring and semantically searching crane documentation.**
 
-## Aktuelle Version
-**v0.5.0**
+Kran-Doc hilft Monteuren, Werkstätten und Entwicklern dabei, technische Kran-Dokumente wie **LEC-Fehlerlisten, BMK-Listen, SPL-Schaltpläne und Manuals** schneller auszuwerten und intelligent miteinander zu verknüpfen.
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/flask-3.1+-green.svg)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Überblick
+---
 
-PDFDoc / Kran-Tools ist eine Python-basierte Anwendung zur automatischen Extraktion und Analyse von technischen Dokumentationen für Liebherr-Krane. Das System verarbeitet verschiedene PDF-Dokumenttypen (Fehlercodes, Schaltpläne, BMK-Listen, Handbücher) und erstellt strukturierte Wissensmodule.
+## Warum Kran-Doc?
 
-### Hauptfunktionen
+Technische PDF-Dokumentation ist oft unübersichtlich, verteilt und schwer durchsuchbar. Kran-Doc baut daraus eine strukturierte Wissensbasis:
 
-- 📄 **PDF-Parsing**: Automatische Extraktion von Fehlercodes (LEC), Schaltplänen (SPL), BMK-Listen
-- 🧠 **Wissensmodule**: Strukturierte JSON-basierte Wissensrepräsentation pro Kranmodell
-- 🔍 **Semantische Suche**: Embedding-basierte Suche in technischer Dokumentation
-- 🌐 **Web-Interface**: Flask-basierte Weboberfläche für einfache Bedienung
-- 📊 **Report-Generierung**: Automatische Erstellung von Übersichten und Indizes
-- 🤖 **Community-Lösungen**: Verwaltung und Review von Lösungsvorschlägen
+- 📄 **PDF-Parsing** für LEC, BMK, SPL und Manuals
+- 🧠 **Wissensmodule** als strukturierte JSON-Daten pro Kranmodell
+- 🔍 **Semantische Suche** über Embeddings
+- 🔗 **Verknüpfung** zwischen Fehlercodes, Baugruppen und Hinweisen
+- 🌐 **Flask-Weboberfläche** für Werkstatt- und Monteur-Einsatz
+- 🤝 **Community-Lösungen** mit Review-Workflow
 
-## Letzte Änderungen
+---
 
-Siehe [CHANGELOG.md](CHANGELOG.md) für eine vollständige Liste der Änderungen.
+## Projektstatus
 
-## Schnellstart
+**Aktuelle Version:** `v0.5.0`
 
-### Voraussetzungen
+### Parser-Status
 
-- Python 3.11 oder höher
-- Tesseract OCR (optional, für OCR-Funktionalität)
-- 4 GB RAM (empfohlen 8 GB für Embeddings)
+| Bereich | Status | Hinweis |
+|---|---|---|
+| LEC | stabil | Fehlercodes und Basis-Metadaten |
+| BMK | stabil | Komponenten- und LSB-Zuordnung |
+| SPL | in Arbeit | OCR-/Layout-Qualität stark PDF-abhängig |
+| Manuals | experimentell | für Wissensaufbau und semantische Suche |
 
-### Installation
+---
 
-1. **Repository klonen**
-   ```bash
-   git clone https://github.com/Gregorfun/Kran-doc.git
-   cd Kran-doc
-   ```
+## Quickstart
 
-2. **Virtuelle Umgebung erstellen**
-   ```bash
-   python -m venv .venv
-   
-   # Windows
-   .venv\Scripts\activate
-   
-   # Linux/Mac
-   source .venv/bin/activate
-   ```
-
-3. **Abhängigkeiten installieren**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Konfiguration anpassen**
-   ```bash
-   # config/config.yaml bearbeiten
-   # Pfade für Tesseract, Input/Output-Verzeichnisse setzen
-   ```
-
-### Verwendung
-
-#### CLI-Menü (Windows)
-
-Doppelklick auf `pdfdoc.bat` oder:
+### Docker (empfohlen)
 
 ```bash
-python scripts/pdfdoc_cli.py
+git clone https://github.com/Gregorfun/Kran-doc.git
+cd Kran-doc
+docker compose up --build
 ```
 
-Das interaktive Menü bietet folgende Optionen:
-1. Komplett-Pipeline (alle Schritte)
-2. Nur Wissensmodule bauen
-3. Nur LEC-Parser ausführen
-4. Nur SPL-Parser ausführen
-5. Nur BMK-Parser ausführen
-6. Merge: FULL_KNOWLEDGE pro Modell erzeugen
-7. Globale Indizes (Fehlercodes + BMKs) bauen
-8. Embedding-Export (knowledge_chunks.jsonl)
-9. Explain-Katalog neu bauen (Regeln/Templates)
-10. Systemcheck / Doctor (OCR/PDF/Config)
+Danach im Browser öffnen:
 
-#### Web-Interface
+```text
+http://localhost:5000
+```
+
+### Lokal
+
+Voraussetzungen:
+
+- Python 3.11 oder höher
+- Tesseract OCR optional für Bild-/Scan-PDFs
+- 4 GB RAM, empfohlen 8 GB bei Embeddings
 
 ```bash
+git clone https://github.com/Gregorfun/Kran-doc.git
+cd Kran-doc
+python -m venv .venv
+```
+
+**Windows**
+
+```bash
+.venv\Scripts\activate
+```
+
+**Linux / macOS**
+
+```bash
+source .venv/bin/activate
+```
+
+Dann:
+
+```bash
+pip install -r requirements.txt
 python webapp/app.py
 ```
 
-Dann Browser öffnen: `http://localhost:5000`
-
-#### Einzelne Skripte
-
-```bash
-# LEC-Fehlercodes parsen
-python scripts/lec_parser.py
-
-# Schaltpläne verarbeiten
-python scripts/spl_parser.py
-
-# BMK-Listen extrahieren
-python scripts/bmk_parser.py
-
-# Wissensmodule erstellen
-python scripts/wissensmodul_builder.py
-
-# Semantische Indizes erstellen
-python scripts/build_local_embedding_index.py
-```
-
-## Ordnerstruktur
+Danach im Browser öffnen:
 
 ```text
-kran-tools/
-├─ config/                    # Konfigurationsdateien
-│  ├─ config.yaml            # Hauptkonfiguration
-│  ├─ explain_rules.json     # Regeln für Explain-Katalog
-│  ├─ explain_templates.json # Templates für Erklärungen
-│  └─ model_patterns.json    # Modellmuster für Erkennung
-├─ scripts/                   # Python-Skripte
-│  ├─ pdfdoc_cli.py          # Interaktives CLI-Menü
-│  ├─ doctor.py              # Systemcheck (OCR/PDF/Config)
-│  ├─ lec_parser.py          # Fehlercode-Parser
-│  ├─ spl_parser.py          # Schaltplan-Parser
-│  ├─ bmk_parser.py          # BMK-Listen-Parser
-│  ├─ merge_knowledge.py     # Wissensmodul-Merge
-│  ├─ build_explain_catalog.py # Explain-Katalog-Generator
-│  └─ ...                    # Weitere Parser und Tools
-├─ webapp/                    # Flask-Weboberfläche
-│  ├─ app.py                 # Hauptanwendung
-│  ├─ spl_pin_hints.py        # SPL-gestützte Stecker/Pin-Hinweise (Next Steps)
-│  ├─ static/                # CSS, JS, Bilder
-│  └─ templates/             # HTML-Templates
-├─ input/                     # Eingabedaten (nicht versioniert)
-│  ├─ lec/                   # LEC-PDFs (Fehlercodelisten)
-│  ├─ bmk/                   # BMK-PDFs
-│  ├─ spl/                   # SPL-PDFs (Schaltpläne)
-│  └─ manuals/               # Handbücher
-├─ output/                    # Generierte Daten (nicht versioniert)
-│  ├─ models/                # JSON-Wissensmodule pro Kranmodell
-│  ├─ reports/               # Markdown-Reports
-│  └─ embeddings/            # Semantische Indizes
-├─ community/                 # Community-Daten
-│  ├─ solutions.json         # Lösungsvorschläge
-│  └─ users.json             # Benutzerdaten
-├─ docs/                      # Dokumentation
-├─ tools/                     # Hilfsskripte
-├─ requirements.txt           # Python-Abhängigkeiten
-├─ pdfdoc.bat                # Windows-Starter
-└─ README.md                 # Diese Datei
+http://localhost:5000
 ```
 
-## Systemcheck (Doctor)
+---
 
-Der Doctor prüft lokal die wichtigsten Voraussetzungen (Config/Ordner, Schreibrechte, Tesseract/OCR, optional PDF-Lesen).
+## Typischer Workflow
 
-- CLI-Menü: Option `[10] Systemcheck / Doctor (OCR/PDF/Config)`
-- Direkt ausführen:
-   - `python scripts/doctor.py`
-   - optional: `python scripts/doctor.py --no-ocr` oder `python scripts/doctor.py --no-pdf`
+1. PDFs in die passenden `input/`-Ordner legen
+2. Parser oder Komplett-Pipeline ausführen
+3. JSON-Wissensmodule unter `output/models/` erzeugen
+4. Embeddings / Indizes bauen
+5. Über die Weboberfläche suchen und Beziehungen nutzen
 
-Wenn OCR fehlschlägt:
-- Tesseract installieren und den Pfad setzen (in `config/config.yaml` oder per Env `TESSERACT_CMD`).
-- Prüfen, dass `pytesseract` + `Pillow` in der `.venv` installiert sind.
+### Beispielbefehle
+
+```bash
+python scripts/lec_parser.py
+python scripts/bmk_parser.py
+python scripts/spl_parser.py
+python scripts/wissensmodul_builder.py
+python scripts/build_local_embedding_index.py
+python webapp/app.py
+```
+
+---
+
+## Projektstruktur
+
+```text
+Kran-doc/
+├─ config/                    # Konfigurationsdateien
+├─ scripts/                   # Parser, Builder, CLI, Doctor, Reports
+├─ webapp/                    # Flask UI
+├─ input/                     # Eingabe-PDFs (nicht versioniert)
+├─ output/                    # Generierte JSONs, Reports, Embeddings
+├─ community/                 # Community-Daten
+├─ docs/                      # Zusatzdokumentation
+├─ tools/                     # Hilfsskripte
+├─ requirements.txt
+├─ docker-compose.yml
+├─ Dockerfile
+└─ README.md
+```
+
+---
 
 ## Architektur
 
-Das System folgt einer modularen Pipeline-Architektur:
+Kran-Doc folgt einer modularen Pipeline:
 
-1. **PDF-Extraktion**: Parser extrahieren strukturierte Daten aus verschiedenen PDF-Typen
-2. **Wissensmodule**: Daten werden in JSON-Wissensmodule konsolidiert
-3. **Indexierung**: Semantische Indizes für schnelle Suche werden erstellt
-4. **Web-Interface**: Flask-App bietet Zugriff auf Wissensmodule
-
-### Datenfluss
-
+```text
+PDF-Dokumente
+    ↓
+Parser (LEC / BMK / SPL / Manual)
+    ↓
+Roh-JSON / strukturierte Daten
+    ↓
+Merge zu Wissensmodulen
+    ↓
+Embedding-Export / semantischer Index
+    ↓
+Weboberfläche / Suche / Diagnosehilfe
 ```
-PDF-Dokumente → Parser → Roh-JSON → Merge → Wissensmodule → Embeddings → Suche
-                                                           ↓
-                                                    Web-Interface
-```
+
+---
 
 ## Konfiguration
 
-### config/config.yaml
+Die wichtigste Konfiguration liegt in `config/config.yaml`.
+
+Beispiele:
 
 ```yaml
-# Eingabeverzeichnisse
 lec_dir: "input/lec"
 bmk_dir: "input/bmk"
 spl_dir: "input/spl"
 manuals_dir: "input/manuals"
-
-# Ausgabeverzeichnisse
 models_dir: "output/models"
 reports_dir: "output/reports"
 embeddings_dir: "output/embeddings"
-
-# OCR-Einstellungen
-tesseract_cmd: "/usr/bin/tesseract"  # Pfad zu Tesseract
+tesseract_cmd: "/usr/bin/tesseract"
 ocr_enabled: true
 ocr_lang: "deu+eng"
-
-# SPL-Parser Optionen
-spl_ocr_only_if_gibberish: true
-spl_auto_ocr_threshold: 0.6
 ```
 
-## Entwicklung
+Zusätzlich kannst du Umgebungsvariablen nutzen, z. B. für Secrets oder OCR-Pfade.
 
-### Code-Stil
+Siehe auch: `.env.example`
 
-- Typ-Annotationen verwenden
-- Docstrings im Google-Style
-- PEP 8 konform
-- Maximale Zeilenlänge: 120 Zeichen
+---
 
-### Projektstruktur erweitern
+## Development
 
-Neue Parser sollten folgendes Interface implementieren:
+### Qualität & Checks
 
-```python
-def process_pdf(pdf_path: Path, output_dir: Path) -> Dict[str, Any]:
-    """
-    Verarbeitet ein PDF und gibt strukturierte Daten zurück.
-    
-    Args:
-        pdf_path: Pfad zum PDF
-        output_dir: Ausgabeverzeichnis
-        
-    Returns:
-        Strukturierte Daten als Dict
-    """
-    pass
-```
+- CI prüft Syntax, Linting und Basistests
+- `tests/` enthält erste Smoke-Tests
+- `CONTRIBUTING.md` beschreibt den Beitragsprozess
 
-## Fehlerbehebung
-
-### Tesseract OCR nicht gefunden
+### Lokale Checks
 
 ```bash
-# Linux
-sudo apt-get install tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
-
-# macOS
-brew install tesseract tesseract-lang
-
-# Windows: Download von https://github.com/UB-Mannheim/tesseract/wiki
+python -m compileall -q .
+pytest -q
 ```
 
-### Import-Fehler
+---
 
-```bash
-# Stelle sicher, dass alle Abhängigkeiten installiert sind
-pip install -r requirements.txt --upgrade
-```
+## Sicherheit
 
-### Speicherprobleme bei Embeddings
+Bitte **keine echten Kundendaten, Geheimnisse oder produktiven `.env`-Dateien** committen.
 
-```bash
-# Reduziere Batch-Size in build_local_embedding_index.py
-# oder verwende ein kleineres Modell
-```
+Weitere Hinweise stehen in [SECURITY.md](SECURITY.md).
 
-## Häufig gestellte Fragen (FAQ)
+---
 
-**F: Welche PDF-Formate werden unterstützt?**  
-A: Alle Standard-PDFs. Text-PDFs funktionieren am besten, für Bild-PDFs ist Tesseract OCR erforderlich.
+## Roadmap
 
-**F: Wie lange dauert die Verarbeitung?**  
-A: Je nach PDF-Größe und Anzahl: LEC-Parser ~1-5 Min, SPL-Parser mit OCR ~5-30 Min pro Dokument.
+- [ ] robustere SPL-/OCR-Auswertung
+- [ ] bessere automatische LEC ↔ BMK-Verknüpfung
+- [ ] Ausbau der Community-Lösungen mit Review und Voting
+- [ ] mehrsprachige Ausgabe mit Deutsch als Primärsprache
+- [ ] mobile / feldtaugliche Oberfläche für Monteure
+- [ ] weitergehende RAG- und Diagnosefunktionen
 
-**F: Kann ich eigene Parser hinzufügen?**  
-A: Ja, siehe Abschnitt "Entwicklung" für das Parser-Interface.
+---
 
-**F: Werden die Original-PDFs geändert?**  
-A: Nein, PDFs werden nur gelesen. Alle Ausgaben gehen nach `output/`.
+## FAQ
 
-## Performance-Tipps
+### Welche PDFs werden unterstützt?
+Alle Standard-PDFs. Text-PDFs funktionieren am besten. Für Scan-/Bild-PDFs ist OCR sinnvoll.
 
-1. **OCR nur bei Bedarf**: `spl_ocr_only_if_gibberish: true` in config.yaml
-2. **Embedding-Model**: Kleinere Modelle für schnellere Suche
-3. **Batch-Verarbeitung**: Nutze die Komplett-Pipeline für mehrere Dokumente
-4. **SSD verwenden**: Deutlich schnellere I/O-Performance
+### Werden Original-PDFs verändert?
+Nein. Die PDFs werden nur gelesen. Ergebnisse landen unter `output/`.
+
+### Kann ich eigene Parser ergänzen?
+Ja. Neue Parser können modular in `scripts/` ergänzt werden.
+
+---
+
+## Contributing
+
+Beiträge sind willkommen.
+
+1. Repository forken
+2. Feature-Branch anlegen
+3. Änderungen testen
+4. Pull Request öffnen
+
+Vor dem Beitrag bitte `CONTRIBUTING.md` lesen.
+
+---
 
 ## Lizenz
 
-Siehe [LICENSE](LICENSE) für Details.
+Dieses Projekt steht unter der [MIT License](LICENSE).
 
-## Support & Beitragen
+---
 
-- **Issues**: [GitHub Issues](https://github.com/Gregorfun/Kran-doc/issues)
-- **Dokumentation**: [Wiki](https://github.com/Gregorfun/Kran-doc/wiki)
-- **Diskussionen**: [GitHub Discussions](https://github.com/Gregorfun/Kran-doc/discussions)
+## Support
 
-Bei Fragen oder Problemen bitte ein Issue erstellen.
-
-## Danksagungen
-
-Dieses Projekt nutzt die folgenden Open-Source-Bibliotheken:
-- Flask - Web-Framework
-- PyPDF - PDF-Verarbeitung
-- Tesseract - OCR
-- sentence-transformers - Semantische Suche
-- PyTorch - Machine Learning
-
+- Issues: [GitHub Issues](https://github.com/Gregorfun/Kran-doc/issues)
+- Pull Requests: willkommen
+- Security-Meldungen: siehe [SECURITY.md](SECURITY.md)
