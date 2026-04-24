@@ -104,6 +104,7 @@ def search_similar(
     top_k: int = 5,
     model_filter: Optional[str] = None,
     source_type_filter: Optional[str] = None,
+    min_score: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     """
     Rückgabe:
@@ -118,7 +119,13 @@ def search_similar(
     if not query:
         return []
 
+    if top_k <= 0:
+        return []
+
     embeddings, texts, metadatas = _load_index()
+    if len(texts) == 0:
+        return []
+
     model = _load_model()
 
     query_vec = model.encode([query], convert_to_numpy=True)
@@ -147,6 +154,8 @@ def search_similar(
         if model_filter and mname != model_filter:
             continue
         if source_type_filter_norm and stype != source_type_filter_norm:
+            continue
+        if min_score is not None and float(sims[idx]) < min_score:
             continue
 
         results.append({
